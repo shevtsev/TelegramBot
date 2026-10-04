@@ -8,7 +8,7 @@ public class Main {
      * Основная функция запуска бота.
      */
     public static void main(String[] args) throws Exception {
-        String botToken = System.getenv("BOT_TOKEN");
+        String botToken = io.github.cdimascio.dotenv.Dotenv.load().get("BOT_TOKEN");
         try (TelegramBotsLongPollingApplication app = new TelegramBotsLongPollingApplication()) {
             app.registerBot(botToken, new BotMain(botToken));
             System.out.println();
