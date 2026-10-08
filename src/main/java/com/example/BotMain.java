@@ -6,6 +6,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+
 /**
  * Класс телеграмм клиента.
  */
@@ -19,13 +20,15 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
 
     @Override
     public void consume(Update update) {
+        BotLogic botLogic = new BotLogic();
         if (!update.hasMessage() || !update.getMessage().hasText()) {
             return;
         }
         long chatId = update.getMessage().getChatId();
         String text = update.getMessage().getText();
-        sendText(chatId, BotLogic.UserAnswer(text));
+        sendText(chatId, botLogic.userAnswer(text));
     }
+
     /**
      * Отправляет текстовое сообщение в чат с указанным id пользователя.
      */

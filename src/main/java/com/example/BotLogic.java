@@ -1,12 +1,14 @@
 package com.example;
+
 /**
  * Класс логики бота.
  */
 public class BotLogic {
     /**
-        * Возвращает ответ на сообщение пользователя, либо вызывает команду, если пользователь написал команду.
-    */
-    public static String UserAnswer(String text) {
+     * Возвращает ответ на сообщение пользователя, либо вызывает команду, если
+     * пользователь написал команду.
+     */
+    public String userAnswer(String text) {
         String answer = switch (text) {
             case "/start" -> "Этот бот повторяет всё, что ты напишешь. Список команд: /help";
             case "/help" -> """
