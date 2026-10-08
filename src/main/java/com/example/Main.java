@@ -13,6 +13,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
         Dotenv dotenv = Dotenv.load();
         String botToken = dotenv.get("BOT_TOKEN");
+        String botName = dotenv.get("BOT_NAME");
         try (TelegramBotsLongPollingApplication app = new TelegramBotsLongPollingApplication()) {
             app.registerBot(botToken, new BotMain(botToken));
             Thread.currentThread().join();

@@ -8,7 +8,7 @@ public class BotLogic {
      * Возвращает ответ на сообщение пользователя, либо вызывает команду, если
      * пользователь написал команду.
      */
-    public String UserAnswer(String text) {
+    public String userAnswer(String text) {
         String answer = switch (text) {
             case "/start" -> "Этот бот повторяет всё, что ты напишешь. Список команд: /help";
             case "/help" -> """
