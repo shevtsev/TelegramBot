@@ -26,7 +26,7 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
         }
         long chatId = update.getMessage().getChatId();
         String text = update.getMessage().getText();
-        sendText(chatId, botLogic.UserAnswer(text));
+        sendText(chatId, botLogic.userAnswer(text));
     }
 
     /**
