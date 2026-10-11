@@ -14,19 +14,24 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
 
     private final TelegramClient telegramClient;
 
-    public BotMain(String botToken) {
+    private final BotLogic botLogic;
+
+    public BotMain(String botToken, String botName) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
+        this.botLogic = new BotLogic(botName);
     }
 
     @Override
     public void consume(Update update) {
-        BotLogic botLogic = new BotLogic();
         if (!update.hasMessage() || !update.getMessage().hasText()) {
             return;
         }
         long chatId = update.getMessage().getChatId();
         String text = update.getMessage().getText();
-        sendText(chatId, botLogic.userAnswer(text));
+        String answer = botLogic.userAnswer(text);
+        if (!answer.isEmpty()) {
+            sendText(chatId, answer);
+        }
     }
 
     /**

@@ -15,7 +15,7 @@ public class Main {
         String botToken = dotenv.get("BOT_TOKEN");
         String botName = dotenv.get("BOT_NAME");
         try (TelegramBotsLongPollingApplication app = new TelegramBotsLongPollingApplication()) {
-            app.registerBot(botToken, new BotMain(botToken));
+            app.registerBot(botToken, new BotMain(botToken, botName));
             Thread.currentThread().join();
         }
     }
