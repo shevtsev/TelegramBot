@@ -16,9 +16,9 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
 
     private final BotLogic botLogic;
 
-    public BotMain(String botToken, String botName) {
+    public BotMain(String botToken) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
-        this.botLogic = new BotLogic(botName);
+        this.botLogic = new BotLogic();
     }
 
     @Override
