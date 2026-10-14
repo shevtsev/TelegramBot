@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
  */
 public class BotLogicTest {
 
-    private final BotLogic botLogic = new BotLogic("EchoBot");
+    private final BotLogic botLogic = new BotLogic();
 
     /**
      * Тестирование эхо ответа бота.
