@@ -2,8 +2,13 @@ package com.example;
 
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.DefaultLongPollingUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
@@ -12,39 +17,70 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
  */
 public class BotMain extends DefaultLongPollingUpdateConsumer {
 
+    private static final String MORE_DATA = "more";
+
     private final TelegramClient telegramClient;
 
     private final BotLogic botLogic;
 
     public BotMain(String botToken) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
-        this.botLogic = new BotLogic(new MemoryStorage());
+        this.botLogic = new BotLogic(new MemoryStorage(), new HttpReader());
     }
 
     @Override
     public void consume(Update update) {
+        if (update.hasCallbackQuery()) {
+            consumeCallback(update.getCallbackQuery());
+            return;
+        }
         if (!update.hasMessage() || !update.getMessage().hasText()) {
             return;
         }
         long chatId = update.getMessage().getChatId();
         long userId = update.getMessage().getFrom().getId();
         String text = update.getMessage().getText();
-        String answer = botLogic.userAnswer(userId, text);
-        if (!answer.isEmpty()) {
-            sendText(chatId, answer);
-        }
+        sendAnswer(chatId, botLogic.userAnswer(userId, text));
     }
 
     /**
-     * Отправляет текстовое сообщение в чат с указанным id пользователя.
+     * Обрабатывает нажатие кнопки «Показать ещё».
      */
-    private void sendText(long chatId, String text) {
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text(text)
-                .build();
+    private void consumeCallback(CallbackQuery callback) {
         try {
-            telegramClient.execute(message);
+            telegramClient.execute(AnswerCallbackQuery.builder()
+                    .callbackQueryId(callback.getId())
+                    .build());
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+        if (!MORE_DATA.equals(callback.getData())) {
+            return;
+        }
+        long chatId = callback.getMessage().getChatId();
+        long userId = callback.getFrom().getId();
+        sendAnswer(chatId, botLogic.moreAnswer(userId));
+    }
+
+    /**
+     * Отправляет ответ бота, добавляя кнопку «Показать ещё», если есть
+     * следующая страница новостей.
+     */
+    private void sendAnswer(long chatId, Answer answer) {
+        SendMessage.SendMessageBuilder<?, ?> message = SendMessage.builder()
+                .chatId(chatId)
+                .text(answer.text());
+        if (answer.hasMore()) {
+            InlineKeyboardButton button = InlineKeyboardButton.builder()
+                    .text("Показать ещё")
+                    .callbackData(MORE_DATA)
+                    .build();
+            message.replyMarkup(InlineKeyboardMarkup.builder()
+                    .keyboardRow(new InlineKeyboardRow(button))
+                    .build());
+        }
+        try {
+            telegramClient.execute(message.build());
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
