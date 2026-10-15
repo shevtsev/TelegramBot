@@ -18,7 +18,7 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
 
     public BotMain(String botToken) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
-        this.botLogic = new BotLogic();
+        this.botLogic = new BotLogic(new MemoryStorage());
     }
 
     @Override
@@ -27,8 +27,9 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
             return;
         }
         long chatId = update.getMessage().getChatId();
+        long userId = update.getMessage().getFrom().getId();
         String text = update.getMessage().getText();
-        String answer = botLogic.userAnswer(text);
+        String answer = botLogic.userAnswer(userId, text);
         if (!answer.isEmpty()) {
             sendText(chatId, answer);
         }
