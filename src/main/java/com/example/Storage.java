@@ -22,4 +22,25 @@ public interface Storage {
      * Возвращает ленты пользователя в порядке добавления.
      */
     List<String> getAll(long userId);
+
+    /**
+     * Возвращает размер страницы новостей пользователя.
+     */
+    int getPageSize(long userId);
+
+    /**
+     * Задаёт размер страницы новостей пользователя.
+     */
+    void setPageSize(long userId, int size);
+
+    /**
+     * Возвращает позицию чтения ленты пользователем или null, если он ещё
+     * ничего не читал.
+     */
+    Reading getReading(long userId);
+
+    /**
+     * Запоминает позицию чтения ленты пользователем.
+     */
+    void setReading(long userId, Reading reading);
 }

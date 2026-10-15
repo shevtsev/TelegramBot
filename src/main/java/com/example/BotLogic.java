@@ -1,5 +1,7 @@
 package com.example;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -7,34 +9,55 @@ import java.util.List;
  */
 public class BotLogic {
 
+    private static final int MAX_PAGE_SIZE = 20;
+
     private final Storage storage;
 
-    public BotLogic(Storage storage) {
+    private final NewsReader reader;
+
+    public BotLogic(Storage storage, NewsReader reader) {
         this.storage = storage;
+        this.reader = reader;
     }
 
     /**
      * Возвращает ответ на сообщение пользователя, либо вызывает команду, если
      * пользователь написал команду.
      */
-    public String userAnswer(long userId, String text) {
+    public Answer userAnswer(long userId, String text) {
         String[] parts = text.split("\\s+", 2);
         String argument = parts.length > 1 ? parts[1].trim() : "";
-        String answer = switch (parts[0]) {
-            case "/start" -> "Этот бот собирает новости из RSS-лент. Список команд: /help";
-            case "/help" -> """
+        Answer answer = switch (parts[0]) {
+            case "/start" -> new Answer("Этот бот собирает новости из RSS-лент. Список команд: /help");
+            case "/help" -> new Answer("""
                     Доступные команды:
                     /start - начать
                     /help - список команд
                     /add <url> - добавить ленту
                     /remove <url> - удалить ленту
-                    /list - список лент""";
-            case "/add" -> addFeed(userId, argument);
-            case "/remove" -> removeFeed(userId, argument);
-            case "/list" -> listFeeds(userId);
-            default -> "Неизвестная команда. Список команд: /help";
+                    /list - список лент
+                    /latest <url> - последние новости ленты
+                    /pagesize <n> - сколько новостей показывать за раз""");
+            case "/add" -> new Answer(addFeed(userId, argument));
+            case "/remove" -> new Answer(removeFeed(userId, argument));
+            case "/list" -> new Answer(listFeeds(userId));
+            case "/latest" -> latest(userId, argument);
+            case "/pagesize" -> new Answer(setPageSize(userId, argument));
+            default -> new Answer("Неизвестная команда. Список команд: /help");
         };
         return answer;
+    }
+
+    /**
+     * Возвращает следующую страницу новостей, когда пользователь нажал кнопку
+     * «Показать ещё».
+     */
+    public Answer moreAnswer(long userId) {
+        Reading reading = storage.getReading(userId);
+        if (reading == null) {
+            return new Answer("Сначала выберите ленту: /latest <url>");
+        }
+        return showPage(userId, reading.url(), reading.offset());
     }
 
     /**
@@ -82,5 +105,58 @@ public class BotLogic {
             result.append(i + 1).append(". ").append(urls.get(i));
         }
         return result.toString();
+    }
+
+    /**
+     * Показывает первую страницу новостей ленты.
+     */
+    private Answer latest(long userId, String url) {
+        if (url.isEmpty()) {
+            return new Answer("Укажите ссылку: /latest <url>");
+        }
+        return showPage(userId, url, 0);
+    }
+
+    /**
+     * Показывает страницу новостей ленты, начиная с позиции offset, и
+     * запоминает, где пользователь остановился.
+     */
+    private Answer showPage(long userId, String url, int offset) {
+        List<FeedItem> news;
+        try {
+            news = reader.read(url);
+        } catch (IOException e) {
+            return new Answer("Не удалось прочитать ленту");
+        }
+        if (news.isEmpty()) {
+            return new Answer("В ленте нет новостей");
+        }
+        if (offset >= news.size()) {
+            return new Answer("Больше новостей нет");
+        }
+        int end = Math.min(offset + storage.getPageSize(userId), news.size());
+        List<String> lines = new ArrayList<>();
+        for (int i = offset; i < end; i++) {
+            lines.add((i + 1) + ". " + news.get(i).getTitle() + " — " + news.get(i).getLink());
+        }
+        storage.setReading(userId, new Reading(url, end));
+        return new Answer(String.join("\n", lines), end < news.size());
+    }
+
+    /**
+     * Задаёт размер страницы новостей пользователя.
+     */
+    private String setPageSize(long userId, String argument) {
+        int size;
+        try {
+            size = Integer.parseInt(argument);
+        } catch (NumberFormatException e) {
+            return "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+        }
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            return "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+        }
+        storage.setPageSize(userId, size);
+        return "Размер страницы изменён: " + size;
     }
 }
