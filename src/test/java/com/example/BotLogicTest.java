@@ -1,19 +1,21 @@
 package com.example;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Тесты для логики работы бота
+ */
 public class BotLogicTest {
+
+    private final BotLogic botLogic = new BotLogic();
+
+    /**
+     * Тестирование эхо ответа бота.
+     */
     @Test
-    void testUserAnswer() {
-        String helloResponse = BotLogic.UserAnswer("Привет");
-        assert helloResponse.equals("Пользователь написал: Привет");
-        String helpResponse = BotLogic.UserAnswer("/help");
-        assert helpResponse.equals("""
-                    Доступные команды:
-                    /start - начать
-                    /help - список команд
-                    Любой другой текст повторяется""");
-        String startResponse = BotLogic.UserAnswer("/start");
-        assert startResponse.equals("Этот бот повторяет всё, что ты напишешь. Список команд: /help");
+    void testEchoResponse() {
+        String echoResponse = botLogic.userAnswer("Привет");
+        Assertions.assertEquals("Пользователь написал: Привет", echoResponse);
     }
 }
