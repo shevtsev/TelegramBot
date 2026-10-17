@@ -15,6 +15,9 @@ public class BotLogic {
 
     private final NewsReader reader;
 
+    /**
+     * Создаёт логику бота с хранилищем данных и чтением новостей из лент.
+     */
     public BotLogic(Storage storage, NewsReader reader) {
         this.storage = storage;
         this.reader = reader;
@@ -50,7 +53,7 @@ public class BotLogic {
 
     /**
      * Возвращает следующую страницу новостей, когда пользователь нажал кнопку
-     * «Показать ещё».
+     * "Показать ещё".
      */
     public Answer moreAnswer(long userId) {
         Reading reading = storage.getReading(userId);

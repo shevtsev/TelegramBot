@@ -23,6 +23,9 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
 
     private final BotLogic botLogic;
 
+    /**
+     * Создаёт телеграмм клиента с указанным токеном бота.
+     */
     public BotMain(String botToken) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
         this.botLogic = new BotLogic(new MemoryStorage(), new HttpReader());
@@ -44,7 +47,7 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
     }
 
     /**
-     * Обрабатывает нажатие кнопки «Показать ещё».
+     * Обрабатывает нажатие кнопки "Показать ещё".
      */
     private void consumeCallback(CallbackQuery callback) {
         try {
@@ -63,7 +66,7 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
     }
 
     /**
-     * Отправляет ответ бота, добавляя кнопку «Показать ещё», если есть
+     * Отправляет ответ бота, добавляя кнопку "Показать ещё", если есть
      * следующая страница новостей.
      */
     private void sendAnswer(long chatId, Answer answer) {
