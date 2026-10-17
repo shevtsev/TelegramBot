@@ -9,10 +9,19 @@ import java.util.List;
  */
 public class BotLogic {
 
+    /**
+     * Максимальный размер страницы новостей.
+     */
     private static final int MAX_PAGE_SIZE = 20;
 
+    /**
+     * Хранилище данных пользователей.
+     */
     private final Storage storage;
 
+    /**
+     * Чтение новостей из лент.
+     */
     private final NewsReader reader;
 
     /**

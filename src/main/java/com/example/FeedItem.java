@@ -5,8 +5,19 @@ package com.example;
  */
 public class FeedItem {
 
+    /**
+     * Заголовок новости.
+     */
     private final String title;
+
+    /**
+     * Ссылка на новость.
+     */
     private final String link;
+
+    /**
+     * Дата публикации новости.
+     */
     private final String pubDate;
 
     /**
