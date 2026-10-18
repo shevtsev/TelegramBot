@@ -17,10 +17,19 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
  */
 public class BotMain extends DefaultLongPollingUpdateConsumer {
 
+    /**
+     * Данные кнопки "Показать ещё".
+     */
     private static final String MORE_DATA = "more";
 
+    /**
+     * Клиент для отправки сообщений в Telegram.
+     */
     private final TelegramClient telegramClient;
 
+    /**
+     * Логика бота.
+     */
     private final BotLogic botLogic;
 
     /**

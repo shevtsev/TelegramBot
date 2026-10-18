@@ -10,12 +10,24 @@ import java.util.Map;
  */
 public class MemoryStorage implements Storage {
 
+    /**
+     * Размер страницы новостей по умолчанию.
+     */
     private static final int DEFAULT_PAGE_SIZE = 3;
 
+    /**
+     * Ленты пользователей по их id.
+     */
     private final Map<Long, List<String>> subscriptions = new HashMap<>();
 
+    /**
+     * Размеры страниц новостей пользователей по их id.
+     */
     private final Map<Long, Integer> pageSizes = new HashMap<>();
 
+    /**
+     * Позиции чтения лент пользователей по их id.
+     */
     private final Map<Long, Reading> readings = new HashMap<>();
 
     @Override

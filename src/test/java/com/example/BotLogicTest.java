@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
  */
 public class BotLogicTest {
 
+    /**
+     * Новости тестовой ленты.
+     */
     private static final List<FeedItem> NEWS = List.of(
             new FeedItem("Первая", "https://example.com/1", ""),
             new FeedItem("Вторая", "https://example.com/2", ""),
@@ -17,6 +20,9 @@ public class BotLogicTest {
             new FeedItem("Четвёртая", "https://example.com/4", ""),
             new FeedItem("Пятая", "https://example.com/5", ""));
 
+    /**
+     * Логика бота с тестовым хранилищем и тестовой лентой.
+     */
     private final BotLogic botLogic = new BotLogic(new MemoryStorage(), url -> {
         if (url.equals("https://broken.com/rss")) {
             throw new IOException("Лента недоступна");

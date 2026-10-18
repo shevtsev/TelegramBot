@@ -14,8 +14,14 @@ import java.util.List;
  */
 public class HttpReader implements NewsReader {
 
+    /**
+     * HTTP-клиент для скачивания лент.
+     */
     private final HttpClient client = HttpClient.newHttpClient();
 
+    /**
+     * Парсер скачанных лент.
+     */
     private final FeedParser feedParser = new FeedParser();
 
     @Override

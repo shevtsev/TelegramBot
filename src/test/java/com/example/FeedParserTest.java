@@ -11,6 +11,9 @@ import java.util.List;
  */
 public class FeedParserTest {
 
+    /**
+     * Парсер лент, который проверяется в тестах.
+     */
     private final FeedParser feedParser = new FeedParser();
 
     /**
