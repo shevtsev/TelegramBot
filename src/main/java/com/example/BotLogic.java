@@ -12,7 +12,17 @@ public class BotLogic {
     /**
      * Максимальный размер страницы новостей.
      */
-    private static final int MAX_PAGE_SIZE = 20;
+    private final int maxPageSize = 20;
+
+    /**
+     * Подпись кнопки "Показать ещё".
+     */
+    private final String moreText = "Показать ещё";
+
+    /**
+     * Данные кнопки "Показать ещё".
+     */
+    private final String moreData = "more";
 
     /**
      * Хранилище данных пользователей.
@@ -61,10 +71,20 @@ public class BotLogic {
     }
 
     /**
+     * Возвращает ответ на нажатие кнопки по её данным.
+     */
+    public Answer callbackAnswer(long userId, String data) {
+        if (moreData.equals(data)) {
+            return moreAnswer(userId);
+        }
+        return new Answer("");
+    }
+
+    /**
      * Возвращает следующую страницу новостей, когда пользователь нажал кнопку
      * "Показать ещё".
      */
-    public Answer moreAnswer(long userId) {
+    private Answer moreAnswer(long userId) {
         Reading reading = storage.getReading(userId);
         if (reading == null) {
             return new Answer("Сначала выберите ленту: /latest <url>");
@@ -152,7 +172,11 @@ public class BotLogic {
             lines.add((i + 1) + ". " + news.get(i).getTitle() + " — " + news.get(i).getLink());
         }
         storage.setReading(userId, new Reading(url, end));
-        return new Answer(String.join("\n", lines), end < news.size());
+        String text = String.join("\n", lines);
+        if (end < news.size()) {
+            return new Answer(text, moreText, moreData);
+        }
+        return new Answer(text);
     }
 
     /**
@@ -163,10 +187,10 @@ public class BotLogic {
         try {
             size = Integer.parseInt(argument);
         } catch (NumberFormatException e) {
-            return "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+            return "Размер страницы должен быть числом от 1 до " + maxPageSize;
         }
-        if (size < 1 || size > MAX_PAGE_SIZE) {
-            return "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+        if (size < 1 || size > maxPageSize) {
+            return "Размер страницы должен быть числом от 1 до " + maxPageSize;
         }
         storage.setPageSize(userId, size);
         return "Размер страницы изменён: " + size;

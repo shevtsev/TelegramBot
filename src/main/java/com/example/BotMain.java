@@ -18,11 +18,6 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 public class BotMain extends DefaultLongPollingUpdateConsumer {
 
     /**
-     * Данные кнопки "Показать ещё".
-     */
-    private static final String MORE_DATA = "more";
-
-    /**
      * Клиент для отправки сообщений в Telegram.
      */
     private final TelegramClient telegramClient;
@@ -66,12 +61,9 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
-        if (!MORE_DATA.equals(callback.getData())) {
-            return;
-        }
         long chatId = callback.getMessage().getChatId();
         long userId = callback.getFrom().getId();
-        sendAnswer(chatId, botLogic.moreAnswer(userId));
+        sendAnswer(chatId, botLogic.callbackAnswer(userId, callback.getData()));
     }
 
     /**
@@ -79,13 +71,16 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
      * следующая страница новостей.
      */
     private void sendAnswer(long chatId, Answer answer) {
+        if (answer.text().isEmpty()) {
+            return;
+        }
         SendMessage.SendMessageBuilder<?, ?> message = SendMessage.builder()
                 .chatId(chatId)
                 .text(answer.text());
         if (answer.hasMore()) {
             InlineKeyboardButton button = InlineKeyboardButton.builder()
-                    .text("Показать ещё")
-                    .callbackData(MORE_DATA)
+                    .text(answer.buttonText())
+                    .callbackData(answer.buttonData())
                     .build();
             message.replyMarkup(InlineKeyboardMarkup.builder()
                     .keyboardRow(new InlineKeyboardRow(button))
