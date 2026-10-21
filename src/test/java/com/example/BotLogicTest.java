@@ -13,7 +13,7 @@ public class BotLogicTest {
     /**
      * Новости тестовой ленты.
      */
-    private static final List<FeedItem> NEWS = List.of(
+    private final List<FeedItem> NEWS = List.of(
             new FeedItem("Первая", "https://example.com/1", ""),
             new FeedItem("Вторая", "https://example.com/2", ""),
             new FeedItem("Третья", "https://example.com/3", ""),
@@ -96,13 +96,13 @@ public class BotLogicTest {
      */
     @Test
     void testShowMore() {
-        botLogic.userAnswer(1, "/latest https://habr.com/rss");
-        Answer second = botLogic.moreAnswer(1);
+        Answer first = botLogic.userAnswer(1, "/latest https://habr.com/rss");
+        Answer second = botLogic.callbackAnswer(1, first.buttonData());
         Assertions.assertEquals("""
                 4. Четвёртая — https://example.com/4
                 5. Пятая — https://example.com/5""", second.text());
         Assertions.assertFalse(second.hasMore());
-        Assertions.assertEquals("Больше новостей нет", botLogic.moreAnswer(1).text());
+        Assertions.assertEquals("Больше новостей нет", botLogic.callbackAnswer(1, first.buttonData()).text());
     }
 
     /**
@@ -110,7 +110,7 @@ public class BotLogicTest {
      */
     @Test
     void testShowMoreWithoutLatest() {
-        Assertions.assertEquals("Сначала выберите ленту: /latest <url>", botLogic.moreAnswer(1).text());
+        Assertions.assertEquals("Сначала выберите ленту: /latest <url>", botLogic.callbackAnswer(1, "more").text());
     }
 
     /**
