@@ -1,22 +1,16 @@
-package com.example;
+package com.example.logic;
+
+import java.util.List;
 
 /**
- * Ответ бота: текст, а также подпись и данные кнопки "Показать ещё" (null,
- * если кнопки нет)
+ * Ответ бота: текст и кнопки под сообщением (пустой список, если кнопок нет).
  */
-public record Answer(String text, String buttonText, String buttonData) {
+public record Answer(String text, List<Button> buttons) {
 
     /**
-     * Создаёт ответ без кнопки "Показать ещё".
+     * Создаёт ответ без кнопок.
      */
     public Answer(String text) {
-        this(text, null, null);
-    }
-
-    /**
-     * Возвращает true, если к ответу нужна кнопка "Показать ещё".
-     */
-    public boolean hasMore() {
-        return buttonData != null;
+        this(text, List.of());
     }
 }

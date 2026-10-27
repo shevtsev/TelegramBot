@@ -1,8 +1,8 @@
-package com.example;
+package com.example.storage;
 
 /**
- * Позиция чтения ленты пользователем: какая лента и сколько новостей уже
+ * Позиция пользователя в ленте: ссылка на ленту и сколько новостей из неё уже
  * показано.
  */
-public record Reading(String url, int offset) {
+public record FeedPosition(String url, int shownCount) {
 }

@@ -1,5 +1,9 @@
-package com.example;
+package com.example.logic;
 
+import com.example.feed.FeedItem;
+import com.example.feed.NewsReader;
+import com.example.storage.FeedPosition;
+import com.example.storage.Storage;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,17 +16,48 @@ public class BotLogic {
     /**
      * Максимальный размер страницы новостей.
      */
-    private final int maxPageSize = 20;
+    private static final int MAX_PAGE_SIZE = 20;
 
     /**
      * Подпись кнопки "Показать ещё".
      */
-    private final String moreText = "Показать ещё";
+    private static final String MORE_TEXT = "Показать ещё";
 
     /**
      * Данные кнопки "Показать ещё".
      */
-    private final String moreData = "more";
+    private static final String MORE_DATA = "more";
+
+    /**
+     * Ответ на команду /start.
+     */
+    private static final String START_MESSAGE =
+            "Этот бот собирает новости из RSS-лент. Список команд: /help";
+
+    /**
+     * Ответ на команду /help.
+     */
+    private static final String HELP_MESSAGE = """
+            Доступные команды:
+            /start - начать
+            /help - список команд
+            /add <url> - добавить ленту
+            /remove <url> - удалить ленту
+            /list - список лент
+            /latest <url> - последние новости ленты
+            /pagesize <n> - сколько новостей показывать за раз""";
+
+    /**
+     * Ответ на неизвестную команду.
+     */
+    private static final String UNKNOWN_MESSAGE =
+            "Неизвестная команда. Список команд: /help";
+
+    /**
+     * Ответ на неверный размер страницы.
+     */
+    private static final String PAGE_SIZE_ERROR_MESSAGE =
+            "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
 
     /**
      * Хранилище данных пользователей.
@@ -50,22 +85,14 @@ public class BotLogic {
         String[] parts = text.split("\\s+", 2);
         String argument = parts.length > 1 ? parts[1].trim() : "";
         Answer answer = switch (parts[0]) {
-            case "/start" -> new Answer("Этот бот собирает новости из RSS-лент. Список команд: /help");
-            case "/help" -> new Answer("""
-                    Доступные команды:
-                    /start - начать
-                    /help - список команд
-                    /add <url> - добавить ленту
-                    /remove <url> - удалить ленту
-                    /list - список лент
-                    /latest <url> - последние новости ленты
-                    /pagesize <n> - сколько новостей показывать за раз""");
+            case "/start" -> new Answer(START_MESSAGE);
+            case "/help" -> new Answer(HELP_MESSAGE);
             case "/add" -> new Answer(addFeed(userId, argument));
             case "/remove" -> new Answer(removeFeed(userId, argument));
             case "/list" -> new Answer(listFeeds(userId));
             case "/latest" -> latest(userId, argument);
-            case "/pagesize" -> new Answer(setPageSize(userId, argument));
-            default -> new Answer("Неизвестная команда. Список команд: /help");
+            case "/pagesize" -> new Answer(pageSizeAnswer(userId, argument));
+            default -> new Answer(UNKNOWN_MESSAGE);
         };
         return answer;
     }
@@ -74,7 +101,7 @@ public class BotLogic {
      * Возвращает ответ на нажатие кнопки по её данным.
      */
     public Answer callbackAnswer(long userId, String data) {
-        if (moreData.equals(data)) {
+        if (MORE_DATA.equals(data)) {
             return moreAnswer(userId);
         }
         return new Answer("");
@@ -85,11 +112,11 @@ public class BotLogic {
      * "Показать ещё".
      */
     private Answer moreAnswer(long userId) {
-        Reading reading = storage.getReading(userId);
-        if (reading == null) {
+        FeedPosition position = storage.getFeedPosition(userId);
+        if (position == null) {
             return new Answer("Сначала выберите ленту: /latest <url>");
         }
-        return showPage(userId, reading.url(), reading.offset());
+        return showPage(userId, position.url(), position.shownCount());
     }
 
     /**
@@ -129,14 +156,11 @@ public class BotLogic {
         if (urls.isEmpty()) {
             return "Подписок пока нет. Добавь ленту командой /add <url>";
         }
-        StringBuilder result = new StringBuilder();
+        List<String> lines = new ArrayList<>();
         for (int i = 0; i < urls.size(); i++) {
-            if (i > 0) {
-                result.append("\n");
-            }
-            result.append(i + 1).append(". ").append(urls.get(i));
+            lines.add((i + 1) + ". " + urls.get(i));
         }
-        return result.toString();
+        return String.join("\n", lines);
     }
 
     /**
@@ -150,10 +174,10 @@ public class BotLogic {
     }
 
     /**
-     * Показывает страницу новостей ленты, начиная с позиции offset, и
+     * Показывает страницу новостей ленты, начиная с позиции from, и
      * запоминает, где пользователь остановился.
      */
-    private Answer showPage(long userId, String url, int offset) {
+    private Answer showPage(long userId, String url, int from) {
         List<FeedItem> news;
         try {
             news = reader.read(url);
@@ -163,36 +187,55 @@ public class BotLogic {
         if (news.isEmpty()) {
             return new Answer("В ленте нет новостей");
         }
-        if (offset >= news.size()) {
+        if (from >= news.size()) {
             return new Answer("Больше новостей нет");
         }
-        int end = Math.min(offset + storage.getPageSize(userId), news.size());
-        List<String> lines = new ArrayList<>();
-        for (int i = offset; i < end; i++) {
-            lines.add((i + 1) + ". " + news.get(i).getTitle() + " — " + news.get(i).getLink());
-        }
-        storage.setReading(userId, new Reading(url, end));
-        String text = String.join("\n", lines);
-        if (end < news.size()) {
-            return new Answer(text, moreText, moreData);
+        int to = Math.min(from + storage.getPageSize(userId), news.size());
+        storage.setFeedPosition(userId, new FeedPosition(url, to));
+        String text = formatNews(news, from, to);
+        if (to < news.size()) {
+            return new Answer(text, List.of(new Button(MORE_TEXT, MORE_DATA)));
         }
         return new Answer(text);
     }
 
     /**
-     * Задаёт размер страницы новостей пользователя.
+     * Возвращает нумерованный список новостей с позиции from до позиции to.
      */
-    private String setPageSize(long userId, String argument) {
+    private String formatNews(List<FeedItem> news, int from, int to) {
+        List<String> lines = new ArrayList<>();
+        for (int i = from; i < to; i++) {
+            FeedItem item = news.get(i);
+            lines.add((i + 1) + ". " + item.getTitle() + " — " + item.getLink());
+        }
+        return String.join("\n", lines);
+    }
+
+    /**
+     * Меняет размер страницы и возвращает ответ пользователю.
+     */
+    private String pageSizeAnswer(long userId, String argument) {
+        if (!changePageSize(userId, argument)) {
+            return PAGE_SIZE_ERROR_MESSAGE;
+        }
+        return "Размер страницы изменён: " + storage.getPageSize(userId);
+    }
+
+    /**
+     * Задаёт размер страницы новостей пользователя. Возвращает false, если
+     * размер указан неверно.
+     */
+    private boolean changePageSize(long userId, String argument) {
         int size;
         try {
             size = Integer.parseInt(argument);
         } catch (NumberFormatException e) {
-            return "Размер страницы должен быть числом от 1 до " + maxPageSize;
+            return false;
         }
-        if (size < 1 || size > maxPageSize) {
-            return "Размер страницы должен быть числом от 1 до " + maxPageSize;
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            return false;
         }
         storage.setPageSize(userId, size);
-        return "Размер страницы изменён: " + size;
+        return true;
     }
 }

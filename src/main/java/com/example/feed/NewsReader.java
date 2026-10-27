@@ -1,4 +1,4 @@
-package com.example;
+package com.example.feed;
 
 import java.io.IOException;
 import java.util.List;

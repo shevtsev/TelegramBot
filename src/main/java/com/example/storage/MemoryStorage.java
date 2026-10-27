@@ -1,4 +1,4 @@
-package com.example;
+package com.example.storage;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -6,68 +6,59 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Хранилище подписок пользователей в памяти.
+ * Хранилище данных пользователей в памяти.
  */
 public class MemoryStorage implements Storage {
 
     /**
-     * Размер страницы новостей по умолчанию.
+     * Данные пользователей по их id.
      */
-    private static final int DEFAULT_PAGE_SIZE = 3;
-
-    /**
-     * Ленты пользователей по их id.
-     */
-    private final Map<Long, List<String>> subscriptions = new HashMap<>();
-
-    /**
-     * Размеры страниц новостей пользователей по их id.
-     */
-    private final Map<Long, Integer> pageSizes = new HashMap<>();
-
-    /**
-     * Позиции чтения лент пользователей по их id.
-     */
-    private final Map<Long, Reading> readings = new HashMap<>();
+    private final Map<Long, UserData> users = new HashMap<>();
 
     @Override
-    public synchronized boolean add(long userId, String url) {
-        List<String> urls = subscriptions.computeIfAbsent(userId, id -> new ArrayList<>());
-        if (urls.contains(url)) {
+    public boolean add(long userId, String url) {
+        List<String> feeds = getUser(userId).getFeeds();
+        if (feeds.contains(url)) {
             return false;
         }
-        urls.add(url);
+        feeds.add(url);
         return true;
     }
 
     @Override
-    public synchronized boolean remove(long userId, String url) {
-        List<String> urls = subscriptions.get(userId);
-        return urls != null && urls.remove(url);
+    public boolean remove(long userId, String url) {
+        return getUser(userId).getFeeds().remove(url);
     }
 
     @Override
-    public synchronized List<String> getAll(long userId) {
-        return new ArrayList<>(subscriptions.getOrDefault(userId, List.of()));
+    public List<String> getAll(long userId) {
+        return new ArrayList<>(getUser(userId).getFeeds());
     }
 
     @Override
-    public synchronized int getPageSize(long userId) {
-        return pageSizes.getOrDefault(userId, DEFAULT_PAGE_SIZE);
+    public int getPageSize(long userId) {
+        return getUser(userId).getPageSize();
     }
 
     @Override
-    public synchronized void setPageSize(long userId, int size) {
-        pageSizes.put(userId, size);
+    public void setPageSize(long userId, int size) {
+        getUser(userId).setPageSize(size);
     }
 
     @Override
-    public synchronized Reading getReading(long userId) {
-        return readings.get(userId);
+    public FeedPosition getFeedPosition(long userId) {
+        return getUser(userId).getFeedPosition();
     }
 
     @Override
-    public synchronized void setReading(long userId, Reading reading) {
-        readings.put(userId, reading);
+    public void setFeedPosition(long userId, FeedPosition position) {
+        getUser(userId).setFeedPosition(position);
+    }
+
+    /**
+     * Возвращает данные пользователя, создавая их при первом обращении.
+     */
+    private UserData getUser(long userId) {
+        return users.computeIfAbsent(userId, id -> new UserData());
     }
 }
