@@ -1,4 +1,4 @@
-package com.example;
+package com.example.feed;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;

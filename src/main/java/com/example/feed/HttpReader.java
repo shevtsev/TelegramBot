@@ -1,4 +1,4 @@
-package com.example;
+package com.example.feed;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +30,8 @@ public class HttpReader implements NewsReader {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofSeconds(10))
                     .build();
-            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = client.send(
+                    request, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = response.body()) {
                 if (response.statusCode() != 200) {
                     throw new IOException("Ответ сервера: " + response.statusCode());

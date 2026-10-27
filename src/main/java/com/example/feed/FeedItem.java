@@ -1,4 +1,4 @@
-package com.example;
+package com.example.feed;
 
 /**
  * Одна новость из RSS-ленты.
