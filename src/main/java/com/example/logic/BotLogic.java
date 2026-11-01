@@ -199,8 +199,16 @@ public class BotLogic {
 
     /**
      * Сохраняет ленту с названием, присланным в диалоге, и завершает диалог.
+     * Если название пустое или уже занято другой лентой, диалог остаётся на
+     * шаге названия.
      */
     private String nameAnswer(long userId, String url, String name) {
+        if (name.isEmpty()) {
+            return "Название не может быть пустым. Как назвать ленту?";
+        }
+        if (hasFeedName(userId, name)) {
+            return "Лента с таким названием уже есть. Пришлите другое название или /cancel";
+        }
         storage.setDialogState(userId, DialogState.NO_DIALOG);
         if (!storage.add(userId, new Feed(name, url))) {
             return DUPLICATE_MESSAGE;
@@ -214,6 +222,19 @@ public class BotLogic {
     private boolean hasFeed(long userId, String url) {
         for (Feed feed : storage.getAll(userId)) {
             if (feed.url().equals(url)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Возвращает true, если у пользователя уже есть лента с таким названием
+     * (без учёта регистра).
+     */
+    private boolean hasFeedName(long userId, String name) {
+        for (Feed feed : storage.getAll(userId)) {
+            if (feed.name().equalsIgnoreCase(name)) {
                 return true;
             }
         }
