@@ -43,4 +43,15 @@ public interface Storage {
      * Запоминает позицию в ленте, на которой остановился пользователь.
      */
     void setFeedPosition(long userId, FeedPosition position);
+
+    /**
+     * Возвращает состояние диалога добавления ленты у пользователя или
+     * DialogState.NO_DIALOG, если пользователь не добавляет ленту.
+     */
+    DialogState getDialogState(long userId);
+
+    /**
+     * Запоминает состояние диалога добавления ленты у пользователя.
+     */
+    void setDialogState(long userId, DialogState state);
 }

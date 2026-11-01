@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Все данные одного пользователя: ленты, размер страницы новостей и позиция
- * в ленте.
+ * Все данные одного пользователя: ленты, размер страницы новостей, позиция
+ * в ленте и состояние диалога добавления ленты.
  */
 class UserData {
 
@@ -28,6 +28,11 @@ class UserData {
      * Позиция в ленте, на которой остановился пользователь, или null.
      */
     private FeedPosition feedPosition;
+
+    /**
+     * Состояние диалога добавления ленты.
+     */
+    private DialogState dialogState = DialogState.NO_DIALOG;
 
     /**
      * Возвращает ленты пользователя.
@@ -62,5 +67,19 @@ class UserData {
      */
     void setFeedPosition(FeedPosition feedPosition) {
         this.feedPosition = feedPosition;
+    }
+
+    /**
+     * Возвращает состояние диалога добавления ленты.
+     */
+    DialogState getDialogState() {
+        return dialogState;
+    }
+
+    /**
+     * Запоминает состояние диалога добавления ленты.
+     */
+    void setDialogState(DialogState dialogState) {
+        this.dialogState = dialogState;
     }
 }

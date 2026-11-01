@@ -41,6 +41,11 @@ public class BotLogicTest {
     private static final String EMPTY_URL = "https://empty.com/rss";
 
     /**
+     * Название тестовой ленты.
+     */
+    private static final String FEED_NAME = "Хабр";
+
+    /**
      * Данные кнопки "Показать ещё".
      */
     private static final String MORE_DATA = "more";
@@ -138,7 +143,6 @@ public class BotLogicTest {
      */
     @Test
     void testAddErrors() {
-        Assertions.assertEquals("Укажите ссылку: /add <url>", textAnswer(USER_ID, "/add"));
         Assertions.assertEquals("Не удалось найти рассылку", textAnswer(USER_ID, "/add habr"));
         botLogic.userAnswer(USER_ID, "/add " + FEED_URL);
         Assertions.assertEquals("Эта лента уже есть в списке",
@@ -167,6 +171,85 @@ public class BotLogicTest {
                 textAnswer(USER_ID, "/remove"));
         Assertions.assertEquals("Такой ленты нет в списке",
                 textAnswer(USER_ID, "/remove " + FEED_URL));
+    }
+
+    /**
+     * Тестирование обычного диалога добавления ленты: ссылка, затем название.
+     */
+    @Test
+    void testAddDialog() {
+        Assertions.assertEquals("Пришлите ссылку на ленту", textAnswer(USER_ID, "/add"));
+        Assertions.assertEquals("Лента найдена. Как её назвать?",
+                textAnswer(USER_ID, FEED_URL));
+        Assertions.assertEquals("Лента “" + FEED_NAME + "” добавлена",
+                textAnswer(USER_ID, FEED_NAME));
+        Assertions.assertEquals("1. " + FEED_NAME + " — " + FEED_URL,
+                textAnswer(USER_ID, "/list"));
+    }
+
+    /**
+     * Тестирование ошибки в диалоге: при неверной ссылке бот остаётся на шаге
+     * ссылки, а /cancel отменяет добавление.
+     */
+    @Test
+    void testAddDialogErrorAndCancel() {
+        botLogic.userAnswer(USER_ID, "/add");
+        Assertions.assertEquals("Не удалось найти рассылку. Пришлите ссылку ещё раз или /cancel",
+                textAnswer(USER_ID, "habr"));
+        Assertions.assertEquals("Добавление отменено", textAnswer(USER_ID, "/cancel"));
+        Assertions.assertEquals("Неизвестная команда. Список команд: /help",
+                textAnswer(USER_ID, FEED_URL));
+        Assertions.assertEquals("Подписок пока нет. Добавь ленту командой /add <url>",
+                textAnswer(USER_ID, "/list"));
+    }
+
+    /**
+     * Тестирование того, что после неверной ссылки диалог продолжается с того
+     * же шага.
+     */
+    @Test
+    void testAddDialogRetryUrl() {
+        botLogic.userAnswer(USER_ID, "/add");
+        botLogic.userAnswer(USER_ID, BROKEN_URL);
+        Assertions.assertEquals("Лента найдена. Как её назвать?",
+                textAnswer(USER_ID, FEED_URL));
+    }
+
+    /**
+     * Тестирование того, что ленту, которая уже есть в списке, нельзя добавить
+     * через диалог, и диалог после этого завершается.
+     */
+    @Test
+    void testAddDialogDuplicate() {
+        botLogic.userAnswer(USER_ID, "/add " + FEED_URL);
+        botLogic.userAnswer(USER_ID, "/add");
+        Assertions.assertEquals("Эта лента уже есть в списке", textAnswer(USER_ID, FEED_URL));
+        Assertions.assertEquals("Нечего отменять", textAnswer(USER_ID, "/cancel"));
+    }
+
+    /**
+     * Тестирование двух пользователей на разных шагах диалога: один ждёт
+     * название, другой ещё ждёт ссылку.
+     */
+    @Test
+    void testAddDialogUsersOnDifferentSteps() {
+        botLogic.userAnswer(USER_ID, "/add");
+        botLogic.userAnswer(OTHER_USER_ID, "/add");
+        botLogic.userAnswer(USER_ID, FEED_URL);
+        Assertions.assertEquals("Не удалось найти рассылку. Пришлите ссылку ещё раз или /cancel",
+                textAnswer(OTHER_USER_ID, FEED_NAME));
+        Assertions.assertEquals("Лента “" + FEED_NAME + "” добавлена",
+                textAnswer(USER_ID, FEED_NAME));
+        Assertions.assertEquals("Подписок пока нет. Добавь ленту командой /add <url>",
+                textAnswer(OTHER_USER_ID, "/list"));
+    }
+
+    /**
+     * Тестирование команды /cancel без начатого диалога.
+     */
+    @Test
+    void testCancelWithoutDialog() {
+        Assertions.assertEquals("Нечего отменять", textAnswer(USER_ID, "/cancel"));
     }
 
     /**
