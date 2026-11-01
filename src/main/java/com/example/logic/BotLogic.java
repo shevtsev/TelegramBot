@@ -2,6 +2,7 @@ package com.example.logic;
 
 import com.example.feed.FeedItem;
 import com.example.feed.NewsReader;
+import com.example.storage.Feed;
 import com.example.storage.FeedPosition;
 import com.example.storage.Storage;
 import java.io.IOException;
@@ -126,13 +127,25 @@ public class BotLogic {
         if (url.isEmpty()) {
             return "Укажите ссылку: /add <url>";
         }
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        if (!isFeed(url)) {
             return "Не удалось найти рассылку";
         }
-        if (!storage.add(userId, url)) {
+        if (!storage.add(userId, new Feed("", url))) {
             return "Эта лента уже есть в списке";
         }
         return "Лента добавлена";
+    }
+
+    /**
+     * Возвращает true, если по ссылке удалось прочитать ленту.
+     */
+    private boolean isFeed(String url) {
+        try {
+            reader.read(url);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /**
@@ -152,15 +165,26 @@ public class BotLogic {
      * Возвращает нумерованный список лент пользователя.
      */
     private String listFeeds(long userId) {
-        List<String> urls = storage.getAll(userId);
-        if (urls.isEmpty()) {
+        List<Feed> feeds = storage.getAll(userId);
+        if (feeds.isEmpty()) {
             return "Подписок пока нет. Добавь ленту командой /add <url>";
         }
         List<String> lines = new ArrayList<>();
-        for (int i = 0; i < urls.size(); i++) {
-            lines.add((i + 1) + ". " + urls.get(i));
+        for (int i = 0; i < feeds.size(); i++) {
+            lines.add((i + 1) + ". " + formatFeed(feeds.get(i)));
         }
         return String.join("\n", lines);
+    }
+
+    /**
+     * Возвращает ленту для показа: название и ссылка, а если названия нет,
+     * только ссылка.
+     */
+    private String formatFeed(Feed feed) {
+        if (feed.name().isEmpty()) {
+            return feed.url();
+        }
+        return feed.name() + " — " + feed.url();
     }
 
     /**

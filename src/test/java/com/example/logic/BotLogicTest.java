@@ -1,10 +1,13 @@
 package com.example.logic;
 
 import com.example.feed.FeedItem;
+import com.example.storage.Feed;
 import com.example.storage.MemoryStorage;
+import com.example.storage.Storage;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,6 +31,16 @@ public class BotLogicTest {
     private static final String FEED_URL = "https://habr.com/rss";
 
     /**
+     * Ссылка на ленту, которую не удаётся прочитать.
+     */
+    private static final String BROKEN_URL = "https://broken.com/rss";
+
+    /**
+     * Ссылка на ленту без новостей.
+     */
+    private static final String EMPTY_URL = "https://empty.com/rss";
+
+    /**
      * Данные кнопки "Показать ещё".
      */
     private static final String MORE_DATA = "more";
@@ -43,14 +56,29 @@ public class BotLogicTest {
             new FeedItem("Пятая", "https://example.com/5", ""));
 
     /**
-     * Логика бота с тестовым хранилищем и тестовой лентой.
+     * Хранилище данных пользователей для тестов.
      */
-    private final BotLogic botLogic = new BotLogic(new MemoryStorage(), url -> {
-        if (url.equals("https://broken.com/rss")) {
-            throw new IOException("Лента недоступна");
-        }
-        return url.equals("https://empty.com/rss") ? List.of() : NEWS;
-    });
+    private Storage storage;
+
+    /**
+     * Логика бота с тестовым хранилищем и тестовой лентой: ссылки не на
+     * https и BROKEN_URL прочитать нельзя.
+     */
+    private BotLogic botLogic;
+
+    /**
+     * Создаёт пустое хранилище и новую логику бота перед каждым тестом.
+     */
+    @BeforeEach
+    void setUp() {
+        storage = new MemoryStorage();
+        botLogic = new BotLogic(storage, url -> {
+            if (!url.startsWith("https://") || url.equals(BROKEN_URL)) {
+                throw new IOException("Лента недоступна");
+            }
+            return url.equals(EMPTY_URL) ? List.of() : NEWS;
+        });
+    }
 
     /**
      * Возвращает текст ответа бота на сообщение пользователя.
@@ -69,6 +97,27 @@ public class BotLogicTest {
         Assertions.assertEquals("Лента удалена", textAnswer(USER_ID, "/remove " + FEED_URL));
         Assertions.assertEquals("Подписок пока нет. Добавь ленту командой /add <url>",
                 textAnswer(USER_ID, "/list"));
+    }
+
+    /**
+     * Тестирование того, что ленту, которую не удаётся прочитать, нельзя
+     * добавить.
+     */
+    @Test
+    void testAddFeedThatCannotBeRead() {
+        Assertions.assertEquals("Не удалось найти рассылку",
+                textAnswer(USER_ID, "/add " + BROKEN_URL));
+        Assertions.assertEquals("Подписок пока нет. Добавь ленту командой /add <url>",
+                textAnswer(USER_ID, "/list"));
+    }
+
+    /**
+     * Тестирование показа ленты с названием в списке лент.
+     */
+    @Test
+    void testListShowsFeedName() {
+        storage.add(USER_ID, new Feed("Хабр", FEED_URL));
+        Assertions.assertEquals("1. Хабр — " + FEED_URL, textAnswer(USER_ID, "/list"));
     }
 
     /**
@@ -94,6 +143,19 @@ public class BotLogicTest {
         botLogic.userAnswer(USER_ID, "/add " + FEED_URL);
         Assertions.assertEquals("Эта лента уже есть в списке",
                 textAnswer(USER_ID, "/add " + FEED_URL));
+        Assertions.assertEquals("1. " + FEED_URL, textAnswer(USER_ID, "/list"));
+    }
+
+    /**
+     * Тестирование того, что удаляется только выбранная лента.
+     */
+    @Test
+    void testRemoveOnlyChosenFeed() {
+        String otherUrl = "https://example.com/rss";
+        botLogic.userAnswer(USER_ID, "/add " + FEED_URL);
+        botLogic.userAnswer(USER_ID, "/add " + otherUrl);
+        Assertions.assertEquals("Лента удалена", textAnswer(USER_ID, "/remove " + FEED_URL));
+        Assertions.assertEquals("1. " + otherUrl, textAnswer(USER_ID, "/list"));
     }
 
     /**
@@ -154,9 +216,9 @@ public class BotLogicTest {
         Assertions.assertEquals("Укажите ссылку: /latest <url>",
                 textAnswer(USER_ID, "/latest"));
         Assertions.assertEquals("Не удалось прочитать ленту",
-                textAnswer(USER_ID, "/latest https://broken.com/rss"));
+                textAnswer(USER_ID, "/latest " + BROKEN_URL));
         Assertions.assertEquals("В ленте нет новостей",
-                textAnswer(USER_ID, "/latest https://empty.com/rss"));
+                textAnswer(USER_ID, "/latest " + EMPTY_URL));
     }
 
     /**
