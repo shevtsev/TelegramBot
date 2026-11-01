@@ -10,11 +10,6 @@ import java.util.List;
 class UserData {
 
     /**
-     * Размер страницы новостей по умолчанию.
-     */
-    private static final int DEFAULT_PAGE_SIZE = 3;
-
-    /**
      * Ленты пользователя в порядке добавления.
      */
     private final List<Feed> feeds = new ArrayList<>();
@@ -22,7 +17,7 @@ class UserData {
     /**
      * Размер страницы новостей.
      */
-    private int pageSize = DEFAULT_PAGE_SIZE;
+    private int pageSize = Storage.DEFAULT_PAGE_SIZE;
 
     /**
      * Позиция в ленте, на которой остановился пользователь, или null.
