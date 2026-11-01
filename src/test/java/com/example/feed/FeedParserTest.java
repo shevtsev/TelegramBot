@@ -1,6 +1,7 @@
 package com.example.feed;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,7 +15,15 @@ public class FeedParserTest {
     /**
      * Парсер лент, который проверяется в тестах.
      */
-    private final FeedParser feedParser = new FeedParser();
+    private FeedParser feedParser;
+
+    /**
+     * Создаёт новый парсер перед каждым тестом.
+     */
+    @BeforeEach
+    void setUp() {
+        feedParser = new FeedParser();
+    }
 
     /**
      * Тестирование разбора ленты с тремя новостями.
@@ -42,12 +51,15 @@ public class FeedParserTest {
     }
 
     /**
-     * Тестирование ошибки при сломанном XML.
+     * Тестирование ошибки при сломанном XML: проверяется и класс исключения,
+     * и его текст.
      */
     @Test
     void testParseBrokenFeed() throws IOException {
         try (InputStream input = openResource("feed_broken.xml")) {
-            Assertions.assertThrows(IllegalArgumentException.class, () -> feedParser.parse(input));
+            IllegalArgumentException exception = Assertions.assertThrows(
+                    IllegalArgumentException.class, () -> feedParser.parse(input));
+            Assertions.assertEquals("Не удалось разобрать ленту", exception.getMessage());
         }
     }
 

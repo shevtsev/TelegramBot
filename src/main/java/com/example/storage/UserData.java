@@ -17,7 +17,7 @@ class UserData {
     /**
      * Ленты пользователя в порядке добавления.
      */
-    private final List<String> feeds = new ArrayList<>();
+    private final List<Feed> feeds = new ArrayList<>();
 
     /**
      * Размер страницы новостей.
@@ -32,7 +32,7 @@ class UserData {
     /**
      * Возвращает ленты пользователя.
      */
-    List<String> getFeeds() {
+    List<Feed> getFeeds() {
         return feeds;
     }
 
