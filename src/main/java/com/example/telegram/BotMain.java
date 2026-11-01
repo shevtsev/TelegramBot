@@ -4,7 +4,7 @@ import com.example.feed.HttpReader;
 import com.example.logic.Answer;
 import com.example.logic.BotLogic;
 import com.example.logic.Button;
-import com.example.storage.MemoryStorage;
+import com.example.storage.Storage;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.DefaultLongPollingUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
@@ -33,11 +33,12 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
     private final BotLogic botLogic;
 
     /**
-     * Создаёт телеграмм клиента с указанным токеном бота.
+     * Создаёт телеграмм клиента с указанным токеном бота, который хранит
+     * данные пользователей в указанном хранилище.
      */
-    public BotMain(String botToken) {
+    public BotMain(String botToken, Storage storage) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
-        this.botLogic = new BotLogic(new MemoryStorage(), new HttpReader());
+        this.botLogic = new BotLogic(storage, new HttpReader());
     }
 
     @Override
