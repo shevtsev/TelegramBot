@@ -57,6 +57,16 @@ public class MemoryStorage implements Storage {
         getUser(userId).setFeedPosition(position);
     }
 
+    @Override
+    public DialogState getDialogState(long userId) {
+        return getUser(userId).getDialogState();
+    }
+
+    @Override
+    public void setDialogState(long userId, DialogState state) {
+        getUser(userId).setDialogState(state);
+    }
+
     /**
      * Возвращает данные пользователя, создавая их при первом обращении.
      */
