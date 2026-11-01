@@ -46,6 +46,16 @@ public class BotLogicTest {
     private static final String FEED_NAME = "Хабр";
 
     /**
+     * Ссылка на вторую тестовую ленту.
+     */
+    private static final String OTHER_URL = "https://example.com/rss";
+
+    /**
+     * Название второй тестовой ленты.
+     */
+    private static final String OTHER_NAME = "Хабр 2";
+
+    /**
      * Данные кнопки "Показать ещё".
      */
     private static final String MORE_DATA = "more";
@@ -250,6 +260,38 @@ public class BotLogicTest {
     @Test
     void testCancelWithoutDialog() {
         Assertions.assertEquals("Нечего отменять", textAnswer(USER_ID, "/cancel"));
+    }
+
+    /**
+     * Тестирование пустого названия в диалоге: бот просит название ещё раз и
+     * остаётся на том же шаге.
+     */
+    @Test
+    void testAddDialogEmptyName() {
+        botLogic.userAnswer(USER_ID, "/add");
+        botLogic.userAnswer(USER_ID, FEED_URL);
+        Assertions.assertEquals("Название не может быть пустым. Как назвать ленту?",
+                textAnswer(USER_ID, "   "));
+        Assertions.assertEquals("Лента “" + FEED_NAME + "” добавлена",
+                textAnswer(USER_ID, FEED_NAME));
+    }
+
+    /**
+     * Тестирование повторного названия в диалоге: название, которое уже есть у
+     * другой ленты (в любом регистре), не принимается, и бот ждёт другое.
+     */
+    @Test
+    void testAddDialogRepeatedName() {
+        storage.add(USER_ID, new Feed(FEED_NAME, OTHER_URL));
+        botLogic.userAnswer(USER_ID, "/add");
+        botLogic.userAnswer(USER_ID, FEED_URL);
+        String error = "Лента с таким названием уже есть. Пришлите другое название или /cancel";
+        Assertions.assertEquals(error, textAnswer(USER_ID, FEED_NAME));
+        Assertions.assertEquals(error, textAnswer(USER_ID, FEED_NAME.toLowerCase()));
+        Assertions.assertEquals("Лента “" + OTHER_NAME + "” добавлена",
+                textAnswer(USER_ID, OTHER_NAME));
+        Assertions.assertEquals("1. " + FEED_NAME + " — " + OTHER_URL
+                + "\n2. " + OTHER_NAME + " — " + FEED_URL, textAnswer(USER_ID, "/list"));
     }
 
     /**
