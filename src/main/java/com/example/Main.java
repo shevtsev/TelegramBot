@@ -1,5 +1,6 @@
 package com.example;
 
+import com.example.telegram.BotMain;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import io.github.cdimascio.dotenv.Dotenv;
 
