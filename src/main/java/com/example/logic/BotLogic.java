@@ -34,8 +34,7 @@ public class BotLogic {
     /**
      * Ответ на команду /start.
      */
-    private static final String START_MESSAGE =
-            "Этот бот собирает новости из RSS-лент. Список команд: /help";
+    private static final String START_MESSAGE = "Этот бот собирает новости из RSS-лент. Список команд: /help";
 
     /**
      * Ответ на команду /help.
@@ -47,16 +46,15 @@ public class BotLogic {
             /add - добавить ленту по шагам
             /add <url> - добавить ленту сразу
             /cancel - отменить добавление ленты
-            /remove <url> - удалить ленту
+            /remove <название или url> - удалить ленту
             /list - список лент
-            /latest <url> - последние новости ленты
+            /latest <название или url> - последние новости ленты
             /pagesize <n> - сколько новостей показывать за раз""";
 
     /**
      * Ответ на неизвестную команду.
      */
-    private static final String UNKNOWN_MESSAGE =
-            "Неизвестная команда. Список команд: /help";
+    private static final String UNKNOWN_MESSAGE = "Неизвестная команда. Список команд: /help";
 
     /**
      * Ответ, когда по ссылке не удалось прочитать ленту.
@@ -76,14 +74,12 @@ public class BotLogic {
     /**
      * Ответ на неверную ссылку в диалоге добавления ленты.
      */
-    private static final String URL_ERROR_MESSAGE =
-            NOT_FOUND_MESSAGE + ". Пришлите ссылку ещё раз или /cancel";
+    private static final String URL_ERROR_MESSAGE = NOT_FOUND_MESSAGE + ". Пришлите ссылку ещё раз или /cancel";
 
     /**
      * Ответ на неверный размер страницы.
      */
-    private static final String PAGE_SIZE_ERROR_MESSAGE =
-            "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+    private static final String PAGE_SIZE_ERROR_MESSAGE = "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
 
     /**
      * Хранилище данных пользователей.
@@ -276,13 +272,26 @@ public class BotLogic {
     }
 
     /**
-     * Удаляет ленту из списка пользователя.
+     * Возвращает ссылку на ленту пользователя с указанным названием (без учёта
+     * регистра), а если такой ленты нет — переданную строку.
      */
-    private String removeFeed(long userId, String url) {
-        if (url.isEmpty()) {
+    private String findFeedUrl(long userId, String nameOrUrl) {
+        for (Feed feed : storage.getAll(userId)) {
+            if (!feed.name().isEmpty() && feed.name().equalsIgnoreCase(nameOrUrl)) {
+                return feed.url();
+            }
+        }
+        return nameOrUrl;
+    }
+
+    /**
+     * Удаляет ленту из списка пользователя по названию или ссылке.
+     */
+    private String removeFeed(long userId, String nameOrUrl) {
+        if (nameOrUrl.isEmpty()) {
             return "Укажите ссылку: /remove <url>";
         }
-        if (!storage.remove(userId, url)) {
+        if (!storage.remove(userId, findFeedUrl(userId, nameOrUrl))) {
             return "Такой ленты нет в списке";
         }
         return "Лента удалена";
@@ -315,13 +324,13 @@ public class BotLogic {
     }
 
     /**
-     * Показывает первую страницу новостей ленты.
+     * Показывает первую страницу новостей ленты по названию или ссылке.
      */
-    private Answer latest(long userId, String url) {
-        if (url.isEmpty()) {
+    private Answer latest(long userId, String nameOrUrl) {
+        if (nameOrUrl.isEmpty()) {
             return new Answer("Укажите ссылку: /latest <url>");
         }
-        return showPage(userId, url, 0);
+        return showPage(userId, findFeedUrl(userId, nameOrUrl), 0);
     }
 
     /**
