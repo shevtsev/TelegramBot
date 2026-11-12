@@ -168,7 +168,7 @@ public abstract class StorageTest {
     @Test
     void testDefaultMailingSettings() {
         Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(USER_ID));
-        Assertions.assertEquals(30, storage.getMailingSettings(USER_ID).checkIntervalMinutes());
+        Assertions.assertEquals(1800, storage.getMailingSettings(USER_ID).checkIntervalSeconds());
         Assertions.assertNull(storage.getMailingSettings(USER_ID).quietFromHour());
         Assertions.assertNull(storage.getMailingSettings(USER_ID).quietToHour());
     }

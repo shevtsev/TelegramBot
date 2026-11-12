@@ -24,7 +24,7 @@ public class DbStorage implements Storage, AutoCloseable {
                 position_shown INT,
                 dialog_step VARCHAR(20) NOT NULL,
                 dialog_url TEXT NOT NULL,
-                check_interval_minutes INT NOT NULL,
+                check_interval_seconds INT NOT NULL,
                 quiet_from INT,
                 quiet_to INT)""";
 
@@ -53,7 +53,7 @@ public class DbStorage implements Storage, AutoCloseable {
      */
     private static final String INSERT_USER = """
             INSERT INTO users (user_id, page_size, dialog_step, dialog_url,
-                check_interval_minutes)
+                check_interval_seconds)
             VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING""";
 
     /**
@@ -115,14 +115,14 @@ public class DbStorage implements Storage, AutoCloseable {
      * Получение настроек рассылки новостей.
      */
     private static final String SELECT_MAILING_SETTINGS = """
-            SELECT check_interval_minutes, quiet_from, quiet_to
+            SELECT check_interval_seconds, quiet_from, quiet_to
             FROM users WHERE user_id = ?""";
 
     /**
      * Изменение настроек рассылки новостей.
      */
     private static final String UPDATE_MAILING_SETTINGS = """
-            UPDATE users SET check_interval_minutes = ?, quiet_from = ?, quiet_to = ?
+            UPDATE users SET check_interval_seconds = ?, quiet_from = ?, quiet_to = ?
             WHERE user_id = ?""";
 
     /**
@@ -251,7 +251,7 @@ public class DbStorage implements Storage, AutoCloseable {
             if (!result.next()) {
                 return MailingSettings.DEFAULT;
             }
-            int checkInterval = result.getInt("check_interval_minutes");
+            int checkInterval = result.getInt("check_interval_seconds");
             int quietFrom = result.getInt("quiet_from");
             boolean quietFromMissing = result.wasNull();
             int quietTo = result.getInt("quiet_to");
@@ -267,7 +267,7 @@ public class DbStorage implements Storage, AutoCloseable {
     @Override
     public void setMailingSettings(long userId, MailingSettings settings) {
         createUserIfMissing(userId);
-        update(UPDATE_MAILING_SETTINGS, settings.checkIntervalMinutes(),
+        update(UPDATE_MAILING_SETTINGS, settings.checkIntervalSeconds(),
                 settings.quietFromHour(), settings.quietToHour(), userId);
     }
 
@@ -315,7 +315,7 @@ public class DbStorage implements Storage, AutoCloseable {
      */
     private void createUserIfMissing(long userId) {
         update(INSERT_USER, userId, DEFAULT_PAGE_SIZE, DialogStep.NONE.name(),
-                DialogState.NO_DIALOG.url(), MailingSettings.DEFAULT.checkIntervalMinutes());
+                DialogState.NO_DIALOG.url(), MailingSettings.DEFAULT.checkIntervalSeconds());
     }
 
     /**
