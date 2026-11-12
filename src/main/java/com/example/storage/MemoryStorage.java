@@ -92,6 +92,11 @@ public class MemoryStorage implements Storage {
         return getUser(userId).getSentNews().contains(newsUrl);
     }
 
+    @Override
+    public boolean hasSentNews(long userId) {
+        return !getUser(userId).getSentNews().isEmpty();
+    }
+
     /**
      * Возвращает данные пользователя, создавая их при первом обращении.
      */

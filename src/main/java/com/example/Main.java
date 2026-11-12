@@ -19,8 +19,14 @@ public class Main {
                 dotenv.get("DB_USER"), dotenv.get("DB_PASSWORD"));
                 TelegramBotsLongPollingApplication app =
                         new TelegramBotsLongPollingApplication()) {
-            app.registerBot(botToken, new BotMain(botToken, storage));
-            Thread.currentThread().join();
+            BotMain bot = new BotMain(botToken, storage);
+            app.registerBot(botToken, bot);
+            bot.startMailing();
+            try {
+                Thread.currentThread().join();
+            } finally {
+                bot.closeMailing();
+            }
         }
     }
 }
