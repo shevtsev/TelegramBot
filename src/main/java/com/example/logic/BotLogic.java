@@ -6,6 +6,7 @@ import com.example.storage.DialogState;
 import com.example.storage.DialogStep;
 import com.example.storage.Feed;
 import com.example.storage.FeedPosition;
+import com.example.storage.MailingSettings;
 import com.example.storage.Storage;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +50,12 @@ public class BotLogic {
             /remove <название или url> - удалить ленту
             /list - список лент
             /latest <название или url> - последние новости ленты
-            /pagesize <n> - сколько новостей показывать за раз""";
+            /pagesize <n> - сколько новостей показывать за раз
+            /interval <время> - как часто проверять ленты (например: 30, 15m, 2h, 1d)
+            /quiet - задать тихие часы по шагам
+            /quiet <с> <до> - задать тихие часы сразу
+            /quiet off - отключить тихие часы
+            /settings - текущие настройки рассылки""";
 
     /**
      * Ответ на неизвестную команду.
@@ -80,6 +86,35 @@ public class BotLogic {
      * Ответ на неверный размер страницы.
      */
     private static final String PAGE_SIZE_ERROR_MESSAGE = "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+
+    /**
+     * Просьба прислать интервал проверки лент.
+     */
+    private static final String ASK_INTERVAL_MESSAGE =
+            "Как часто проверять ленты? Пришлите интервал, например: 30, 15m, 2h, 1d";
+
+    /**
+     * Ответ на неверный интервал проверки лент.
+     */
+    private static final String INTERVAL_ERROR_MESSAGE =
+            "Интервал должен быть от 1 секунды до 7 дней, например: 30, 15m, 2h, 1d";
+
+    /**
+     * Просьба прислать час начала тихих часов.
+     */
+    private static final String ASK_QUIET_FROM_MESSAGE =
+            "С какого часа не присылать новости? Пришлите число от 0 до 23";
+
+    /**
+     * Просьба прислать час конца тихих часов.
+     */
+    private static final String ASK_QUIET_TO_MESSAGE = "До какого часа?";
+
+    /**
+     * Ответ на неверный час тихих часов.
+     */
+    private static final String QUIET_HOUR_ERROR_MESSAGE =
+            "Пришлите час от 0 до 23 или /cancel";
 
     /**
      * Хранилище данных пользователей.
@@ -119,6 +154,9 @@ public class BotLogic {
             case "/list" -> new Answer(listFeeds(userId));
             case "/latest" -> latest(userId, argument);
             case "/pagesize" -> new Answer(pageSizeAnswer(userId, argument));
+            case "/interval" -> new Answer(intervalAnswer(userId, argument));
+            case "/quiet" -> new Answer(quietAnswer(userId, argument));
+            case "/settings" -> new Answer(settingsAnswer(userId));
             default -> new Answer(UNKNOWN_MESSAGE);
         };
         return answer;
@@ -173,6 +211,9 @@ public class BotLogic {
         return switch (state.step()) {
             case WAITING_URL -> urlAnswer(userId, text);
             case WAITING_NAME -> nameAnswer(userId, state.url(), text);
+            case WAITING_INTERVAL -> intervalValueAnswer(userId, text);
+            case WAITING_QUIET_FROM -> quietFromAnswer(userId, text);
+            case WAITING_QUIET_TO -> quietToAnswer(userId, state.url(), text);
             case NONE -> UNKNOWN_MESSAGE;
         };
     }
@@ -238,25 +279,18 @@ public class BotLogic {
     }
 
     /**
-     * Отменяет диалог добавления ленты и возвращает ответ пользователю.
+     * Отменяет текущий диалог и возвращает ответ пользователю.
      */
     private String cancelAnswer(long userId) {
-        if (!cancelDialog(userId)) {
+        DialogStep step = storage.getDialogState(userId).step();
+        if (step == DialogStep.NONE) {
             return "Нечего отменять";
         }
-        return "Добавление отменено";
-    }
-
-    /**
-     * Отменяет диалог добавления ленты. Возвращает false, если пользователь
-     * не добавлял ленту.
-     */
-    private boolean cancelDialog(long userId) {
-        if (storage.getDialogState(userId).step() == DialogStep.NONE) {
-            return false;
-        }
         storage.setDialogState(userId, DialogState.NO_DIALOG);
-        return true;
+        return switch (step) {
+            case WAITING_URL, WAITING_NAME -> "Добавление отменено";
+            default -> "Настройка отменена";
+        };
     }
 
     /**
@@ -397,5 +431,133 @@ public class BotLogic {
         }
         storage.setPageSize(userId, size);
         return true;
+    }
+
+    /**
+     * Задаёт интервал проверки лент из параметра команды, а если параметра
+     * нет, начинает диалог настройки интервала.
+     */
+    private String intervalAnswer(long userId, String argument) {
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_INTERVAL, ""));
+            return ASK_INTERVAL_MESSAGE;
+        }
+        return intervalValueAnswer(userId, argument);
+    }
+
+    /**
+     * Сохраняет интервал проверки лент, присланный параметром или в диалоге.
+     * Если интервал указан неверно, диалог остаётся на шаге интервала.
+     */
+    private String intervalValueAnswer(long userId, String text) {
+        Integer seconds = IntervalParser.parseSeconds(text);
+        if (seconds == null) {
+            return INTERVAL_ERROR_MESSAGE;
+        }
+        MailingSettings settings = storage.getMailingSettings(userId);
+        storage.setMailingSettings(userId, new MailingSettings(
+                seconds, settings.quietFromHour(), settings.quietToHour()));
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
+        return "Буду проверять ленты " + IntervalParser.describe(seconds);
+    }
+
+    /**
+     * Задаёт тихие часы из параметров команды: два часа через пробел или
+     * "off" для отключения. Без параметров начинает диалог настройки тихих
+     * часов.
+     */
+    private String quietAnswer(long userId, String argument) {
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId,
+                    new DialogState(DialogStep.WAITING_QUIET_FROM, ""));
+            return ASK_QUIET_FROM_MESSAGE;
+        }
+        if (argument.equals("off")) {
+            MailingSettings settings = storage.getMailingSettings(userId);
+            storage.setMailingSettings(userId, new MailingSettings(
+                    settings.checkIntervalSeconds(), null, null));
+            return "Тихие часы отключены";
+        }
+        String[] hours = argument.split("\\s+");
+        if (hours.length == 2) {
+            Integer from = parseHour(hours[0]);
+            Integer to = parseHour(hours[1]);
+            if (from != null && to != null) {
+                return saveQuietHours(userId, from, to);
+            }
+        }
+        return "Укажите тихие часы двумя числами от 0 до 23: /quiet <с> <до>";
+    }
+
+    /**
+     * Запоминает час начала тихих часов, присланный в диалоге, и переходит
+     * к шагу часа конца. Если час указан неверно, диалог остаётся на том же
+     * шаге.
+     */
+    private String quietFromAnswer(long userId, String text) {
+        Integer from = parseHour(text);
+        if (from == null) {
+            return QUIET_HOUR_ERROR_MESSAGE;
+        }
+        storage.setDialogState(userId,
+                new DialogState(DialogStep.WAITING_QUIET_TO, from.toString()));
+        return ASK_QUIET_TO_MESSAGE;
+    }
+
+    /**
+     * Сохраняет тихие часы, когда в диалоге прислан час конца, и завершает
+     * диалог. Если час указан неверно, диалог остаётся на шаге часа конца.
+     */
+    private String quietToAnswer(long userId, String fromText, String text) {
+        Integer to = parseHour(text);
+        if (to == null) {
+            return QUIET_HOUR_ERROR_MESSAGE;
+        }
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
+        return saveQuietHours(userId, Integer.parseInt(fromText), to);
+    }
+
+    /**
+     * Возвращает час по строке, если это число от 0 до 23, иначе null.
+     */
+    private Integer parseHour(String text) {
+        if (!text.matches("\\d{1,2}")) {
+            return null;
+        }
+        int hour = Integer.parseInt(text);
+        return hour <= 23 ? hour : null;
+    }
+
+    /**
+     * Сохраняет тихие часы пользователя и возвращает ответ пользователю.
+     */
+    private String saveQuietHours(long userId, int from, int to) {
+        MailingSettings settings = storage.getMailingSettings(userId);
+        storage.setMailingSettings(userId,
+                new MailingSettings(settings.checkIntervalSeconds(), from, to));
+        return "Не буду присылать новости с " + formatHour(from)
+                + " до " + formatHour(to);
+    }
+
+    /**
+     * Показывает текущие настройки рассылки пользователя.
+     */
+    private String settingsAnswer(long userId) {
+        MailingSettings settings = storage.getMailingSettings(userId);
+        String quiet = "не настроены";
+        if (settings.quietFromHour() != null) {
+            quiet = "с " + formatHour(settings.quietFromHour())
+                    + " до " + formatHour(settings.quietToHour());
+        }
+        return "Проверка лент: "
+                + IntervalParser.describe(settings.checkIntervalSeconds())
+                + ". Тихие часы: " + quiet;
+    }
+
+    /**
+     * Возвращает час для показа пользователю в виде "08:00".
+     */
+    private String formatHour(int hour) {
+        return String.format("%02d:00", hour);
     }
 }

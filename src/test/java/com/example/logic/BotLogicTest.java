@@ -428,4 +428,137 @@ public class BotLogicTest {
                 Assertions.assertEquals(error, textAnswer(USER_ID, "/pagesize 0"));
                 Assertions.assertEquals(error, textAnswer(USER_ID, "/pagesize 21"));
         }
+
+        /**
+         * Тестирование настроек рассылки по умолчанию: проверка лент каждые
+         * 30 минут, тихие часы не настроены.
+         */
+        @Test
+        void testDefaultSettings() {
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 30 минут. Тихие часы: не настроены",
+                                textAnswer(USER_ID, "/settings"));
+        }
+
+        /**
+         * Тестирование установки интервала параметром: число в минутах и
+         * интервал с единицей времени (s, m, h, d).
+         */
+        @Test
+        void testIntervalWithParameter() {
+                Assertions.assertEquals("Буду проверять ленты каждые 30 минут",
+                                textAnswer(USER_ID, "/interval 30"));
+                Assertions.assertEquals("Буду проверять ленты каждые 15 минут",
+                                textAnswer(USER_ID, "/interval 15m"));
+                Assertions.assertEquals("Буду проверять ленты каждые 2 часа",
+                                textAnswer(USER_ID, "/interval 2h"));
+                Assertions.assertEquals("Буду проверять ленты каждые 30 секунд",
+                                textAnswer(USER_ID, "/interval 30s"));
+                Assertions.assertEquals("Буду проверять ленты каждый день",
+                                textAnswer(USER_ID, "/interval 1d"));
+        }
+
+        /**
+         * Тестирование ошибок команды /interval.
+         */
+        @Test
+        void testIntervalErrors() {
+                String error = "Интервал должен быть от 1 секунды до 7 дней, например: 30, 15m, 2h, 1d";
+                Assertions.assertEquals(error, textAnswer(USER_ID, "/interval abc"));
+                Assertions.assertEquals(error, textAnswer(USER_ID, "/interval 0"));
+                Assertions.assertEquals(error, textAnswer(USER_ID, "/interval 8d"));
+                Assertions.assertEquals(error, textAnswer(USER_ID, "/interval -5"));
+        }
+
+        /**
+         * Тестирование пошаговой установки интервала: бот спрашивает интервал
+         * и сохраняет присланное значение.
+         */
+        @Test
+        void testIntervalDialog() {
+                Assertions.assertEquals(
+                                "Как часто проверять ленты? Пришлите интервал, например: 30, 15m, 2h, 1d",
+                                textAnswer(USER_ID, "/interval"));
+                Assertions.assertEquals("Буду проверять ленты каждые 45 минут",
+                                textAnswer(USER_ID, "45m"));
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 45 минут. Тихие часы: не настроены",
+                                textAnswer(USER_ID, "/settings"));
+        }
+
+        /**
+         * Тестирование пошаговой настройки тихих часов: бот спрашивает час
+         * начала, затем час конца.
+         */
+        @Test
+        void testQuietDialog() {
+                Assertions.assertEquals(
+                                "С какого часа не присылать новости? Пришлите число от 0 до 23",
+                                textAnswer(USER_ID, "/quiet"));
+                Assertions.assertEquals("До какого часа?", textAnswer(USER_ID, "23"));
+                Assertions.assertEquals("Не буду присылать новости с 23:00 до 08:00",
+                                textAnswer(USER_ID, "8"));
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 30 минут. Тихие часы: с 23:00 до 08:00",
+                                textAnswer(USER_ID, "/settings"));
+        }
+
+        /**
+         * Тестирование установки тихих часов параметрами и их отключения
+         * командой /quiet off.
+         */
+        @Test
+        void testQuietWithParametersAndOff() {
+                Assertions.assertEquals("Не буду присылать новости с 22:00 до 07:00",
+                                textAnswer(USER_ID, "/quiet 22 7"));
+                Assertions.assertEquals("Тихие часы отключены",
+                                textAnswer(USER_ID, "/quiet off"));
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 30 минут. Тихие часы: не настроены",
+                                textAnswer(USER_ID, "/settings"));
+        }
+
+        /**
+         * Тестирование ошибок в диалоге тихих часов: бот остаётся на том же
+         * шаге, а /cancel отменяет настройку.
+         */
+        @Test
+        void testQuietErrorsAndCancel() {
+                String hourError = "Пришлите час от 0 до 23 или /cancel";
+                botLogic.userAnswer(USER_ID, "/quiet");
+                Assertions.assertEquals(hourError, textAnswer(USER_ID, "abc"));
+                Assertions.assertEquals(hourError, textAnswer(USER_ID, "24"));
+                Assertions.assertEquals("До какого часа?", textAnswer(USER_ID, "23"));
+                Assertions.assertEquals(hourError, textAnswer(USER_ID, "-1"));
+                Assertions.assertEquals("Настройка отменена", textAnswer(USER_ID, "/cancel"));
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 30 минут. Тихие часы: не настроены",
+                                textAnswer(USER_ID, "/settings"));
+        }
+
+        /**
+         * Тестирование ошибки команды /quiet с одним параметром.
+         */
+        @Test
+        void testQuietOneParameterError() {
+                Assertions.assertEquals(
+                                "Укажите тихие часы двумя числами от 0 до 23: /quiet <с> <до>",
+                                textAnswer(USER_ID, "/quiet 23"));
+        }
+
+        /**
+         * Тестирование того, что настройки рассылки свои у каждого
+         * пользователя, а установка тихих часов не сбрасывает интервал.
+         */
+        @Test
+        void testSettingsArePerUser() {
+                botLogic.userAnswer(USER_ID, "/interval 5m");
+                botLogic.userAnswer(USER_ID, "/quiet 23 8");
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 30 минут. Тихие часы: не настроены",
+                                textAnswer(OTHER_USER_ID, "/settings"));
+                Assertions.assertEquals(
+                                "Проверка лент: каждые 5 минут. Тихие часы: с 23:00 до 08:00",
+                                textAnswer(USER_ID, "/settings"));
+        }
 }
