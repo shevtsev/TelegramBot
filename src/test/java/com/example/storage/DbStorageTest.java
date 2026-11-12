@@ -80,6 +80,7 @@ public class DbStorageTest extends StorageTest {
         Assertions.assertEquals(waitingName, dbStorage.getDialogState(USER_ID));
         Assertions.assertEquals(quiet, dbStorage.getMailingSettings(USER_ID));
         Assertions.assertTrue(dbStorage.isNewsSent(USER_ID, "https://habr.com/news/1"));
+        Assertions.assertTrue(dbStorage.hasSentNews(USER_ID));
     }
 
     /**

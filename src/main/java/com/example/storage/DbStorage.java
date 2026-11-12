@@ -145,6 +145,12 @@ public class DbStorage implements Storage, AutoCloseable {
             SELECT 1 FROM sent_news WHERE user_id = ? AND news_url = ?""";
 
     /**
+     * Проверка, что пользователю была отправлена хоть одна новость.
+     */
+    private static final String SELECT_ANY_SENT_NEWS =
+            "SELECT 1 FROM sent_news WHERE user_id = ?";
+
+    /**
      * Соединение с базой данных.
      */
     private final Connection connection;
@@ -293,6 +299,16 @@ public class DbStorage implements Storage, AutoCloseable {
     @Override
     public boolean isNewsSent(long userId, String newsUrl) {
         try (PreparedStatement statement = prepare(SELECT_SENT_NEWS, userId, newsUrl);
+                ResultSet result = statement.executeQuery()) {
+            return result.next();
+        } catch (SQLException e) {
+            throw queryError(e);
+        }
+    }
+
+    @Override
+    public boolean hasSentNews(long userId) {
+        try (PreparedStatement statement = prepare(SELECT_ANY_SENT_NEWS, userId);
                 ResultSet result = statement.executeQuery()) {
             return result.next();
         } catch (SQLException e) {
