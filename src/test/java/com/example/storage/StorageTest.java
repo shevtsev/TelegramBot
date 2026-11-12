@@ -222,6 +222,17 @@ public abstract class StorageTest {
     }
 
     /**
+     * Тестирование проверки, была ли отправлена хоть одна новость.
+     */
+    @Test
+    void testHasSentNews() {
+        Assertions.assertFalse(storage.hasSentNews(USER_ID));
+        storage.addSentNews(USER_ID, "https://habr.com/news/1");
+        Assertions.assertTrue(storage.hasSentNews(USER_ID));
+        Assertions.assertFalse(storage.hasSentNews(OTHER_USER_ID));
+    }
+
+    /**
      * Тестирование того, что изменение одной настройки не портит остальные.
      */
     @Test

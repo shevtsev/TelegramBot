@@ -4,6 +4,8 @@ import com.example.feed.HttpReader;
 import com.example.logic.Answer;
 import com.example.logic.BotLogic;
 import com.example.logic.Button;
+import com.example.mailing.MailingService;
+import com.example.mailing.NewsSender;
 import com.example.storage.Storage;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.DefaultLongPollingUpdateConsumer;
@@ -20,7 +22,7 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 /**
  * Класс телеграмм клиента.
  */
-public class BotMain extends DefaultLongPollingUpdateConsumer {
+public class BotMain extends DefaultLongPollingUpdateConsumer implements NewsSender {
 
     /**
      * Клиент для отправки сообщений в Telegram.
@@ -33,12 +35,37 @@ public class BotMain extends DefaultLongPollingUpdateConsumer {
     private final BotLogic botLogic;
 
     /**
+     * Фоновая рассылка новостей.
+     */
+    private final MailingService mailingService;
+
+    /**
      * Создаёт телеграмм клиента с указанным токеном бота, который хранит
      * данные пользователей в указанном хранилище.
      */
     public BotMain(String botToken, Storage storage) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
         this.botLogic = new BotLogic(storage, new HttpReader());
+        this.mailingService = new MailingService(storage, new HttpReader(), this);
+    }
+
+    /**
+     * Запускает фоновую рассылку новостей.
+     */
+    public void startMailing() {
+        mailingService.start();
+    }
+
+    /**
+     * Останавливает фоновую рассылку новостей.
+     */
+    public void closeMailing() {
+        mailingService.close();
+    }
+
+    @Override
+    public void sendNews(long userId, String text) {
+        sendAnswer(userId, new Answer(text));
     }
 
     @Override

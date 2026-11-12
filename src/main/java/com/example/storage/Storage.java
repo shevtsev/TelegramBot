@@ -87,4 +87,9 @@ public interface Storage {
      * Проверяет, была ли новость уже отправлена пользователю.
      */
     boolean isNewsSent(long userId, String newsUrl);
+
+    /**
+     * Проверяет, была ли отправлена хоть одна новость пользователю.
+     */
+    boolean hasSentNews(long userId);
 }
