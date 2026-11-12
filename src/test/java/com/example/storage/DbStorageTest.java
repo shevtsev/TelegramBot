@@ -63,10 +63,13 @@ public class DbStorageTest extends StorageTest {
     void testDataSurvivesReconnect() {
         Feed feed = new Feed("Хабр", "https://habr.com/rss");
         DialogState waitingName = new DialogState(DialogStep.WAITING_NAME, feed.url());
+        MailingSettings quiet = new MailingSettings(60, 23, 8);
         dbStorage.add(USER_ID, feed);
         dbStorage.setPageSize(USER_ID, 5);
         dbStorage.setFeedPosition(USER_ID, new FeedPosition(feed.url(), 3));
         dbStorage.setDialogState(USER_ID, waitingName);
+        dbStorage.setMailingSettings(USER_ID, quiet);
+        dbStorage.addSentNews(USER_ID, "https://habr.com/news/1");
         dbStorage.close();
 
         dbStorage = new DbStorage(url, "", "");
@@ -75,6 +78,8 @@ public class DbStorageTest extends StorageTest {
         Assertions.assertEquals(new FeedPosition(feed.url(), 3),
                 dbStorage.getFeedPosition(USER_ID));
         Assertions.assertEquals(waitingName, dbStorage.getDialogState(USER_ID));
+        Assertions.assertEquals(quiet, dbStorage.getMailingSettings(USER_ID));
+        Assertions.assertTrue(dbStorage.isNewsSent(USER_ID, "https://habr.com/news/1"));
     }
 
     /**

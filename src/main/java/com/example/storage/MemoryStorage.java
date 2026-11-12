@@ -67,6 +67,31 @@ public class MemoryStorage implements Storage {
         getUser(userId).setDialogState(state);
     }
 
+    @Override
+    public MailingSettings getMailingSettings(long userId) {
+        return getUser(userId).getMailingSettings();
+    }
+
+    @Override
+    public void setMailingSettings(long userId, MailingSettings settings) {
+        getUser(userId).setMailingSettings(settings);
+    }
+
+    @Override
+    public List<Long> getUserIds() {
+        return new ArrayList<>(users.keySet());
+    }
+
+    @Override
+    public boolean addSentNews(long userId, String newsUrl) {
+        return getUser(userId).getSentNews().add(newsUrl);
+    }
+
+    @Override
+    public boolean isNewsSent(long userId, String newsUrl) {
+        return getUser(userId).getSentNews().contains(newsUrl);
+    }
+
     /**
      * Возвращает данные пользователя, создавая их при первом обращении.
      */
