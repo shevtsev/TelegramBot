@@ -60,4 +60,31 @@ public interface Storage {
      * Запоминает состояние диалога добавления ленты у пользователя.
      */
     void setDialogState(long userId, DialogState state);
+
+    /**
+     * Возвращает настройки рассылки новостей пользователя. Если настройки не
+     * заданы, возвращает MailingSettings.DEFAULT.
+     */
+    MailingSettings getMailingSettings(long userId);
+
+    /**
+     * Запоминает настройки рассылки новостей пользователя.
+     */
+    void setMailingSettings(long userId, MailingSettings settings);
+
+    /**
+     * Возвращает идентификаторы пользователей, у которых есть ленты.
+     */
+    List<Long> getUserIds();
+
+    /**
+     * Помечает новость как отправленную пользователю. Возвращает false, если
+     * эта новость уже была отмечена раньше.
+     */
+    boolean addSentNews(long userId, String newsUrl);
+
+    /**
+     * Проверяет, была ли новость уже отправлена пользователю.
+     */
+    boolean isNewsSent(long userId, String newsUrl);
 }

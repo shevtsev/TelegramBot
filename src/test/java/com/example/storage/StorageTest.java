@@ -162,16 +162,81 @@ public abstract class StorageTest {
     }
 
     /**
+     * Тестирование настроек рассылки по умолчанию: интервал 30 минут, тихие
+     * часы не настроены.
+     */
+    @Test
+    void testDefaultMailingSettings() {
+        Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(USER_ID));
+        Assertions.assertEquals(30, storage.getMailingSettings(USER_ID).checkIntervalMinutes());
+        Assertions.assertNull(storage.getMailingSettings(USER_ID).quietFromHour());
+        Assertions.assertNull(storage.getMailingSettings(USER_ID).quietToHour());
+    }
+
+    /**
+     * Тестирование настроек рассылки: у каждого пользователя свои настройки,
+     * новые настройки заменяют прежние, тихие часы можно выключить.
+     */
+    @Test
+    void testMailingSettingsIsPerUser() {
+        MailingSettings quiet = new MailingSettings(60, 23, 8);
+        storage.setMailingSettings(USER_ID, quiet);
+        Assertions.assertEquals(quiet, storage.getMailingSettings(USER_ID));
+        Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(OTHER_USER_ID));
+        MailingSettings changed = new MailingSettings(15, 1, 7);
+        storage.setMailingSettings(USER_ID, changed);
+        Assertions.assertEquals(changed, storage.getMailingSettings(USER_ID));
+        storage.setMailingSettings(USER_ID, MailingSettings.DEFAULT);
+        Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(USER_ID));
+    }
+
+    /**
+     * Тестирование списка пользователей: пустой у нового хранилища, в списке
+     * только пользователи с лентами.
+     */
+    @Test
+    void testGetUserIds() {
+        Assertions.assertTrue(storage.getUserIds().isEmpty());
+        storage.add(USER_ID, new Feed("Хабр", FEED_URL));
+        storage.add(USER_ID, new Feed("", "https://example.com/rss"));
+        storage.add(OTHER_USER_ID, new Feed("", "https://other.com/rss"));
+        Assertions.assertEquals(
+                List.of(USER_ID, OTHER_USER_ID).stream().sorted().toList(),
+                storage.getUserIds().stream().sorted().toList());
+    }
+
+    /**
+     * Тестирование учёта отправленных новостей: новость помечается один раз,
+     * новости одного пользователя не влияют на другого.
+     */
+    @Test
+    void testSentNews() {
+        String newsUrl = "https://habr.com/news/1";
+        Assertions.assertFalse(storage.isNewsSent(USER_ID, newsUrl));
+        Assertions.assertTrue(storage.addSentNews(USER_ID, newsUrl));
+        Assertions.assertTrue(storage.isNewsSent(USER_ID, newsUrl));
+        Assertions.assertFalse(storage.addSentNews(USER_ID, newsUrl));
+        Assertions.assertFalse(storage.isNewsSent(OTHER_USER_ID, newsUrl));
+        Assertions.assertTrue(storage.addSentNews(OTHER_USER_ID, newsUrl));
+        Assertions.assertTrue(storage.isNewsSent(OTHER_USER_ID, newsUrl));
+    }
+
+    /**
      * Тестирование того, что изменение одной настройки не портит остальные.
      */
     @Test
     void testSettingsDoNotAffectEachOther() {
         DialogState waitingName = new DialogState(DialogStep.WAITING_NAME, FEED_URL);
+        MailingSettings quiet = new MailingSettings(120, 22, 9);
         storage.setPageSize(USER_ID, 5);
         storage.setFeedPosition(USER_ID, new FeedPosition(FEED_URL, 3));
         storage.setDialogState(USER_ID, waitingName);
+        storage.setMailingSettings(USER_ID, quiet);
+        storage.addSentNews(USER_ID, "https://habr.com/news/1");
         Assertions.assertEquals(5, storage.getPageSize(USER_ID));
         Assertions.assertEquals(new FeedPosition(FEED_URL, 3), storage.getFeedPosition(USER_ID));
         Assertions.assertEquals(waitingName, storage.getDialogState(USER_ID));
+        Assertions.assertEquals(quiet, storage.getMailingSettings(USER_ID));
+        Assertions.assertTrue(storage.isNewsSent(USER_ID, "https://habr.com/news/1"));
     }
 }

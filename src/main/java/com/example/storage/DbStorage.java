@@ -23,7 +23,10 @@ public class DbStorage implements Storage, AutoCloseable {
                 position_url TEXT,
                 position_shown INT,
                 dialog_step VARCHAR(20) NOT NULL,
-                dialog_url TEXT NOT NULL)""";
+                dialog_url TEXT NOT NULL,
+                check_interval_minutes INT NOT NULL,
+                quiet_from INT,
+                quiet_to INT)""";
 
     /**
      * Создание таблицы с лентами пользователей.
@@ -37,11 +40,21 @@ public class DbStorage implements Storage, AutoCloseable {
                 UNIQUE (user_id, url))""";
 
     /**
+     * Создание таблицы с уже отправленными новостями.
+     */
+    private static final String CREATE_SENT_NEWS = """
+            CREATE TABLE IF NOT EXISTS sent_news (
+                user_id BIGINT NOT NULL,
+                news_url VARCHAR(2048) NOT NULL,
+                PRIMARY KEY (user_id, news_url))""";
+
+    /**
      * Создание пользователя с настройками по умолчанию, если его ещё нет.
      */
     private static final String INSERT_USER = """
-            INSERT INTO users (user_id, page_size, dialog_step, dialog_url)
-            VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING""";
+            INSERT INTO users (user_id, page_size, dialog_step, dialog_url,
+                check_interval_minutes)
+            VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING""";
 
     /**
      * Добавление ленты, если ленты с такой ссылкой у пользователя ещё нет.
@@ -99,6 +112,39 @@ public class DbStorage implements Storage, AutoCloseable {
             "UPDATE users SET dialog_step = ?, dialog_url = ? WHERE user_id = ?";
 
     /**
+     * Получение настроек рассылки новостей.
+     */
+    private static final String SELECT_MAILING_SETTINGS = """
+            SELECT check_interval_minutes, quiet_from, quiet_to
+            FROM users WHERE user_id = ?""";
+
+    /**
+     * Изменение настроек рассылки новостей.
+     */
+    private static final String UPDATE_MAILING_SETTINGS = """
+            UPDATE users SET check_interval_minutes = ?, quiet_from = ?, quiet_to = ?
+            WHERE user_id = ?""";
+
+    /**
+     * Получение идентификаторов пользователей, у которых есть ленты.
+     */
+    private static final String SELECT_USER_IDS =
+            "SELECT DISTINCT user_id FROM feeds";
+
+    /**
+     * Пометка новости как отправленной, если она ещё не отмечена.
+     */
+    private static final String INSERT_SENT_NEWS = """
+            INSERT INTO sent_news (user_id, news_url) VALUES (?, ?)
+            ON CONFLICT DO NOTHING""";
+
+    /**
+     * Проверка, что новость уже была отправлена пользователю.
+     */
+    private static final String SELECT_SENT_NEWS = """
+            SELECT 1 FROM sent_news WHERE user_id = ? AND news_url = ?""";
+
+    /**
      * Соединение с базой данных.
      */
     private final Connection connection;
@@ -114,6 +160,7 @@ public class DbStorage implements Storage, AutoCloseable {
         }
         update(CREATE_USERS);
         update(CREATE_FEEDS);
+        update(CREATE_SENT_NEWS);
     }
 
     @Override
@@ -198,6 +245,62 @@ public class DbStorage implements Storage, AutoCloseable {
     }
 
     @Override
+    public MailingSettings getMailingSettings(long userId) {
+        try (PreparedStatement statement = prepare(SELECT_MAILING_SETTINGS, userId);
+                ResultSet result = statement.executeQuery()) {
+            if (!result.next()) {
+                return MailingSettings.DEFAULT;
+            }
+            int checkInterval = result.getInt("check_interval_minutes");
+            int quietFrom = result.getInt("quiet_from");
+            boolean quietFromMissing = result.wasNull();
+            int quietTo = result.getInt("quiet_to");
+            return new MailingSettings(
+                    checkInterval,
+                    quietFromMissing ? null : quietFrom,
+                    result.wasNull() ? null : quietTo);
+        } catch (SQLException e) {
+            throw queryError(e);
+        }
+    }
+
+    @Override
+    public void setMailingSettings(long userId, MailingSettings settings) {
+        createUserIfMissing(userId);
+        update(UPDATE_MAILING_SETTINGS, settings.checkIntervalMinutes(),
+                settings.quietFromHour(), settings.quietToHour(), userId);
+    }
+
+    @Override
+    public List<Long> getUserIds() {
+        try (PreparedStatement statement = prepare(SELECT_USER_IDS);
+                ResultSet result = statement.executeQuery()) {
+            List<Long> userIds = new ArrayList<>();
+            while (result.next()) {
+                userIds.add(result.getLong("user_id"));
+            }
+            return userIds;
+        } catch (SQLException e) {
+            throw queryError(e);
+        }
+    }
+
+    @Override
+    public boolean addSentNews(long userId, String newsUrl) {
+        return update(INSERT_SENT_NEWS, userId, newsUrl) > 0;
+    }
+
+    @Override
+    public boolean isNewsSent(long userId, String newsUrl) {
+        try (PreparedStatement statement = prepare(SELECT_SENT_NEWS, userId, newsUrl);
+                ResultSet result = statement.executeQuery()) {
+            return result.next();
+        } catch (SQLException e) {
+            throw queryError(e);
+        }
+    }
+
+    @Override
     public void close() {
         try {
             connection.close();
@@ -212,7 +315,7 @@ public class DbStorage implements Storage, AutoCloseable {
      */
     private void createUserIfMissing(long userId) {
         update(INSERT_USER, userId, DEFAULT_PAGE_SIZE, DialogStep.NONE.name(),
-                DialogState.NO_DIALOG.url());
+                DialogState.NO_DIALOG.url(), MailingSettings.DEFAULT.checkIntervalMinutes());
     }
 
     /**
