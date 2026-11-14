@@ -33,5 +33,20 @@ public enum DialogStep {
     /**
      * Бот ждёт час конца тихих часов.
      */
-    WAITING_QUIET_TO
+    WAITING_QUIET_TO,
+
+    /**
+     * Бот ждёт название ленты для показа новостей.
+     */
+    WAITING_LATEST,
+
+    /**
+     * Бот ждёт название ленты для удаления.
+     */
+    WAITING_REMOVE,
+
+    /**
+     * Бот ждёт размер страницы новостей.
+     */
+    WAITING_PAGE_SIZE
 }
