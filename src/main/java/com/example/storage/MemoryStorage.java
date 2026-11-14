@@ -16,22 +16,24 @@ public class MemoryStorage implements Storage {
     private final Map<Long, UserData> users = new HashMap<>();
 
     @Override
-    public boolean add(long userId, String url) {
-        List<String> feeds = getUser(userId).getFeeds();
-        if (feeds.contains(url)) {
-            return false;
+    public boolean add(long userId, Feed feed) {
+        List<Feed> feeds = getUser(userId).getFeeds();
+        for (Feed existing : feeds) {
+            if (existing.url().equals(feed.url())) {
+                return false;
+            }
         }
-        feeds.add(url);
+        feeds.add(feed);
         return true;
     }
 
     @Override
     public boolean remove(long userId, String url) {
-        return getUser(userId).getFeeds().remove(url);
+        return getUser(userId).getFeeds().removeIf(feed -> feed.url().equals(url));
     }
 
     @Override
-    public List<String> getAll(long userId) {
+    public List<Feed> getAll(long userId) {
         return new ArrayList<>(getUser(userId).getFeeds());
     }
 
@@ -53,6 +55,16 @@ public class MemoryStorage implements Storage {
     @Override
     public void setFeedPosition(long userId, FeedPosition position) {
         getUser(userId).setFeedPosition(position);
+    }
+
+    @Override
+    public DialogState getDialogState(long userId) {
+        return getUser(userId).getDialogState();
+    }
+
+    @Override
+    public void setDialogState(long userId, DialogState state) {
+        getUser(userId).setDialogState(state);
     }
 
     /**

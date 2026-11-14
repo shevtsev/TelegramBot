@@ -6,22 +6,28 @@ import java.util.List;
  * Интерфейс хранилища данных пользователей.
  */
 public interface Storage {
-    /**
-     * Добавляет ленту пользователю. Возвращает false, если лента уже есть
-     * в списке.
-     */
-    boolean add(long userId, String url);
 
     /**
-     * Удаляет ленту у пользователя. Возвращает false, если такой ленты нет
-     * в списке.
+     * Размер страницы новостей по умолчанию.
+     */
+    int DEFAULT_PAGE_SIZE = 3;
+
+    /**
+     * Добавляет ленту пользователю. Возвращает false, если лента с такой
+     * ссылкой уже есть в списке.
+     */
+    boolean add(long userId, Feed feed);
+
+    /**
+     * Удаляет ленту с указанной ссылкой у пользователя. Возвращает false,
+     * если такой ленты нет в списке.
      */
     boolean remove(long userId, String url);
 
     /**
      * Возвращает ленты пользователя в порядке добавления.
      */
-    List<String> getAll(long userId);
+    List<Feed> getAll(long userId);
 
     /**
      * Возвращает размер страницы новостей пользователя.
@@ -43,4 +49,15 @@ public interface Storage {
      * Запоминает позицию в ленте, на которой остановился пользователь.
      */
     void setFeedPosition(long userId, FeedPosition position);
+
+    /**
+     * Возвращает состояние диалога добавления ленты у пользователя или
+     * DialogState.NO_DIALOG, если пользователь не добавляет ленту.
+     */
+    DialogState getDialogState(long userId);
+
+    /**
+     * Запоминает состояние диалога добавления ленты у пользователя.
+     */
+    void setDialogState(long userId, DialogState state);
 }
