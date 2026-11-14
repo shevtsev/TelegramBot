@@ -180,7 +180,7 @@ public class BotLogicTest {
          */
         @Test
         void testRemoveErrors() {
-                Assertions.assertEquals("Укажите ссылку: /remove <url>",
+                Assertions.assertEquals("Какую ленту удалить?",
                                 textAnswer(USER_ID, "/remove"));
                 Assertions.assertEquals("Такой ленты нет в списке",
                                 textAnswer(USER_ID, "/remove " + FEED_URL));
@@ -380,7 +380,7 @@ public class BotLogicTest {
          */
         @Test
         void testLatestErrors() {
-                Assertions.assertEquals("Укажите ссылку: /latest <url>",
+                Assertions.assertEquals("Новости какой ленты показать?",
                                 textAnswer(USER_ID, "/latest"));
                 Assertions.assertEquals("Не удалось прочитать ленту",
                                 textAnswer(USER_ID, "/latest " + BROKEN_URL));
@@ -423,7 +423,9 @@ public class BotLogicTest {
         @Test
         void testPageSizeErrors() {
                 String error = "Размер страницы должен быть числом от 1 до 20";
-                Assertions.assertEquals(error, textAnswer(USER_ID, "/pagesize"));
+                Assertions.assertEquals("Сколько новостей показывать за раз? Пришлите число от 1 до 20",
+                                textAnswer(USER_ID, "/pagesize"));
+                Assertions.assertEquals("Действие отменено", textAnswer(USER_ID, "/cancel"));
                 Assertions.assertEquals(error, textAnswer(USER_ID, "/pagesize abc"));
                 Assertions.assertEquals(error, textAnswer(USER_ID, "/pagesize 0"));
                 Assertions.assertEquals(error, textAnswer(USER_ID, "/pagesize 21"));
@@ -560,5 +562,95 @@ public class BotLogicTest {
                 Assertions.assertEquals(
                                 "Проверка лент: каждые 5 минут. Тихие часы: с 23:00 до 08:00",
                                 textAnswer(USER_ID, "/settings"));
+        }
+
+        /**
+         * Тестирование пошагового показа новостей: бот спрашивает ленту и
+         * показывает первую страницу её новостей.
+         */
+        @Test
+        void testLatestDialog() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                Assertions.assertEquals("Новости какой ленты показать?",
+                                textAnswer(USER_ID, "/latest"));
+                Answer answer = botLogic.userAnswer(USER_ID, FEED_NAME);
+                Assertions.assertEquals("""
+                                1. Первая — https://example.com/1
+                                2. Вторая — https://example.com/2
+                                3. Третья — https://example.com/3""", answer.text());
+                Assertions.assertEquals(List.of(new Button("Показать ещё", MORE_DATA)),
+                                answer.buttons());
+        }
+
+        /**
+         * Тестирование ошибки в диалоге показа новостей: при нечитаемой ленте
+         * бот остаётся на том же шаге, а /cancel отменяет действие.
+         */
+        @Test
+        void testLatestDialogErrorAndCancel() {
+                botLogic.userAnswer(USER_ID, "/latest");
+                Assertions.assertEquals("Не удалось прочитать ленту. Пришлите название ещё раз или /cancel",
+                                textAnswer(USER_ID, "habr"));
+                Assertions.assertEquals("Действие отменено", textAnswer(USER_ID, "/cancel"));
+                Assertions.assertEquals("Неизвестная команда. Список команд: /help",
+                                textAnswer(USER_ID, FEED_NAME));
+        }
+
+        /**
+         * Тестирование пошагового удаления ленты: бот спрашивает ленту и
+         * удаляет её по присланному названию.
+         */
+        @Test
+        void testRemoveDialog() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                Assertions.assertEquals("Какую ленту удалить?",
+                                textAnswer(USER_ID, "/remove"));
+                Assertions.assertEquals("Лента удалена", textAnswer(USER_ID, FEED_NAME));
+                Assertions.assertEquals("Подписок пока нет. Добавь ленту командой /add <url>",
+                                textAnswer(USER_ID, "/list"));
+        }
+
+        /**
+         * Тестирование ошибки в диалоге удаления: если такой ленты нет, бот
+         * остаётся на том же шаге.
+         */
+        @Test
+        void testRemoveDialogRetry() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic.userAnswer(USER_ID, "/remove");
+                Assertions.assertEquals("Такой ленты нет в списке. Пришлите название ещё раз или /cancel",
+                                textAnswer(USER_ID, OTHER_NAME));
+                Assertions.assertEquals("Лента удалена", textAnswer(USER_ID, FEED_NAME));
+        }
+
+        /**
+         * Тестирование пошаговой установки размера страницы: бот спрашивает
+         * число и сохраняет присланное значение.
+         */
+        @Test
+        void testPageSizeDialog() {
+                Assertions.assertEquals("Сколько новостей показывать за раз? Пришлите число от 1 до 20",
+                                textAnswer(USER_ID, "/pagesize"));
+                Assertions.assertEquals("Размер страницы изменён: 2",
+                                textAnswer(USER_ID, "2"));
+                Answer answer = botLogic.userAnswer(USER_ID, "/latest " + FEED_URL);
+                Assertions.assertEquals("""
+                                1. Первая — https://example.com/1
+                                2. Вторая — https://example.com/2""", answer.text());
+        }
+
+        /**
+         * Тестирование ошибки в диалоге размера страницы: при неверном числе
+         * бот остаётся на том же шаге, а /cancel отменяет действие.
+         */
+        @Test
+        void testPageSizeDialogErrorAndCancel() {
+                String error = "Размер страницы должен быть числом от 1 до 20. Пришлите число ещё раз или /cancel";
+                botLogic.userAnswer(USER_ID, "/pagesize");
+                Assertions.assertEquals(error, textAnswer(USER_ID, "abc"));
+                Assertions.assertEquals(error, textAnswer(USER_ID, "21"));
+                Assertions.assertEquals("Действие отменено", textAnswer(USER_ID, "/cancel"));
+                Assertions.assertEquals("Неизвестная команда. Список команд: /help",
+                                textAnswer(USER_ID, "2"));
         }
 }

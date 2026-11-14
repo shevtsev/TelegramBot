@@ -46,11 +46,15 @@ public class BotLogic {
             /help - список команд
             /add - добавить ленту по шагам
             /add <url> - добавить ленту сразу
-            /cancel - отменить добавление ленты
-            /remove <название или url> - удалить ленту
+            /cancel - отменить текущий диалог
+            /remove - удалить ленту по шагам
+            /remove <название или url> - удалить ленту сразу
             /list - список лент
+            /latest - показать новости по шагам
             /latest <название или url> - последние новости ленты
+            /pagesize - задать размер страницы по шагам
             /pagesize <n> - сколько новостей показывать за раз
+            /interval - задать интервал проверки по шагам
             /interval <время> - как часто проверять ленты (например: 30, 15m, 2h, 1d)
             /quiet - задать тихие часы по шагам
             /quiet <с> <до> - задать тихие часы сразу
@@ -100,6 +104,22 @@ public class BotLogic {
             "Интервал должен быть от 1 секунды до 7 дней, например: 30, 15m, 2h, 1d";
 
     /**
+     * Просьба прислать название ленты для показа новостей.
+     */
+    private static final String ASK_LATEST_MESSAGE = "Новости какой ленты показать?";
+
+    /**
+     * Просьба прислать название ленты для удаления.
+     */
+    private static final String ASK_REMOVE_MESSAGE = "Какую ленту удалить?";
+
+    /**
+     * Просьба прислать размер страницы новостей.
+     */
+    private static final String ASK_PAGE_SIZE_MESSAGE =
+            "Сколько новостей показывать за раз? Пришлите число от 1 до " + MAX_PAGE_SIZE;
+
+    /**
      * Просьба прислать час начала тихих часов.
      */
     private static final String ASK_QUIET_FROM_MESSAGE =
@@ -141,7 +161,7 @@ public class BotLogic {
      */
     public Answer userAnswer(long userId, String text) {
         if (!text.startsWith("/")) {
-            return new Answer(dialogAnswer(userId, text.trim()));
+            return dialogAnswer(userId, text.trim());
         }
         String[] parts = text.split("\\s+", 2);
         String argument = parts.length > 1 ? parts[1].trim() : "";
@@ -206,15 +226,18 @@ public class BotLogic {
      * Возвращает ответ на обычный текст: если пользователь добавляет ленту,
      * текст считается ответом на текущий шаг диалога.
      */
-    private String dialogAnswer(long userId, String text) {
+    private Answer dialogAnswer(long userId, String text) {
         DialogState state = storage.getDialogState(userId);
         return switch (state.step()) {
-            case WAITING_URL -> urlAnswer(userId, text);
-            case WAITING_NAME -> nameAnswer(userId, state.url(), text);
-            case WAITING_INTERVAL -> intervalValueAnswer(userId, text);
-            case WAITING_QUIET_FROM -> quietFromAnswer(userId, text);
-            case WAITING_QUIET_TO -> quietToAnswer(userId, state.url(), text);
-            case NONE -> UNKNOWN_MESSAGE;
+            case WAITING_URL -> new Answer(urlAnswer(userId, text));
+            case WAITING_NAME -> new Answer(nameAnswer(userId, state.url(), text));
+            case WAITING_INTERVAL -> new Answer(intervalValueAnswer(userId, text));
+            case WAITING_QUIET_FROM -> new Answer(quietFromAnswer(userId, text));
+            case WAITING_QUIET_TO -> new Answer(quietToAnswer(userId, state.url(), text));
+            case WAITING_LATEST -> latestDialogAnswer(userId, text);
+            case WAITING_REMOVE -> new Answer(removeDialogAnswer(userId, text));
+            case WAITING_PAGE_SIZE -> new Answer(pageSizeDialogAnswer(userId, text));
+            case NONE -> new Answer(UNKNOWN_MESSAGE);
         };
     }
 
@@ -289,7 +312,8 @@ public class BotLogic {
         storage.setDialogState(userId, DialogState.NO_DIALOG);
         return switch (step) {
             case WAITING_URL, WAITING_NAME -> "Добавление отменено";
-            default -> "Настройка отменена";
+            case WAITING_INTERVAL, WAITING_QUIET_FROM, WAITING_QUIET_TO -> "Настройка отменена";
+            default -> "Действие отменено";
         };
     }
 
@@ -323,11 +347,24 @@ public class BotLogic {
      */
     private String removeFeed(long userId, String nameOrUrl) {
         if (nameOrUrl.isEmpty()) {
-            return "Укажите ссылку: /remove <url>";
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_REMOVE, ""));
+            return ASK_REMOVE_MESSAGE;
         }
         if (!storage.remove(userId, findFeedUrl(userId, nameOrUrl))) {
             return "Такой ленты нет в списке";
         }
+        return "Лента удалена";
+    }
+
+    /**
+     * Удаляет ленту, присланную в диалоге, и завершает диалог. Если такой
+     * ленты нет в списке, диалог остаётся на том же шаге.
+     */
+    private String removeDialogAnswer(long userId, String text) {
+        if (!storage.remove(userId, findFeedUrl(userId, text))) {
+            return "Такой ленты нет в списке. Пришлите название ещё раз или /cancel";
+        }
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
         return "Лента удалена";
     }
 
@@ -362,9 +399,24 @@ public class BotLogic {
      */
     private Answer latest(long userId, String nameOrUrl) {
         if (nameOrUrl.isEmpty()) {
-            return new Answer("Укажите ссылку: /latest <url>");
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_LATEST, ""));
+            return new Answer(ASK_LATEST_MESSAGE);
         }
         return showPage(userId, findFeedUrl(userId, nameOrUrl), 0);
+    }
+
+    /**
+     * Показывает первую страницу новостей ленты, присланной в диалоге, и
+     * завершает диалог. Если ленту не удалось прочитать, диалог остаётся на
+     * том же шаге.
+     */
+    private Answer latestDialogAnswer(long userId, String text) {
+        String url = findFeedUrl(userId, text);
+        if (!isFeed(url)) {
+            return new Answer("Не удалось прочитать ленту. Пришлите название ещё раз или /cancel");
+        }
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
+        return showPage(userId, url, 0);
     }
 
     /**
@@ -409,9 +461,25 @@ public class BotLogic {
      * Меняет размер страницы и возвращает ответ пользователю.
      */
     private String pageSizeAnswer(long userId, String argument) {
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_PAGE_SIZE, ""));
+            return ASK_PAGE_SIZE_MESSAGE;
+        }
         if (!changePageSize(userId, argument)) {
             return PAGE_SIZE_ERROR_MESSAGE;
         }
+        return "Размер страницы изменён: " + storage.getPageSize(userId);
+    }
+
+    /**
+     * Сохраняет размер страницы, присланный в диалоге, и завершает диалог.
+     * Если размер указан неверно, диалог остаётся на том же шаге.
+     */
+    private String pageSizeDialogAnswer(long userId, String text) {
+        if (!changePageSize(userId, text)) {
+            return PAGE_SIZE_ERROR_MESSAGE + ". Пришлите число ещё раз или /cancel";
+        }
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
         return "Размер страницы изменён: " + storage.getPageSize(userId);
     }
 
