@@ -1,20 +1,13 @@
 package com.example.mailing;
 
 import com.example.feed.FeedItem;
-import com.example.feed.NewsReader;
 import com.example.storage.Feed;
+import com.example.storage.Interval;
 import com.example.storage.MailingSettings;
 import com.example.storage.MemoryStorage;
-import java.io.IOException;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +65,7 @@ public class MailingServiceTest {
     void setUp() {
         storage = new MemoryStorage();
         storage.add(USER_ID, new Feed("Хабр", FEED_URL));
-        storage.setMailingSettings(USER_ID, new MailingSettings(60, null, null));
+        storage.setMailingSettings(USER_ID, new MailingSettings(new Interval(60), null, null));
         reader = new FakeReader();
         sender = new FakeSender();
         clock = new MutableClock(START_TIME);
@@ -126,8 +119,8 @@ public class MailingServiceTest {
     @Test
     void testIntervalIsRespected() {
         MailingSettings settings = storage.getMailingSettings(USER_ID);
-        storage.setMailingSettings(USER_ID, new MailingSettings(
-                300, settings.quietFromHour(), settings.quietToHour()));
+        settings.setInterval(new Interval(300));
+        storage.setMailingSettings(USER_ID, settings);
         reader.setNews(FEED_URL, new FeedItem("Первая новость",
                 "https://habr.com/1", ""));
         service.checkOnce();
@@ -148,7 +141,7 @@ public class MailingServiceTest {
      */
     @Test
     void testQuietHours() {
-        storage.setMailingSettings(USER_ID, new MailingSettings(60, 23, 8));
+        storage.setMailingSettings(USER_ID, new MailingSettings(new Interval(60), 23, 8));
         reader.setNews(FEED_URL, new FeedItem("Первая новость",
                 "https://habr.com/1", ""));
         service.checkOnce();
@@ -173,84 +166,5 @@ public class MailingServiceTest {
         clock.advance(Duration.ofMinutes(1));
         service.checkOnce();
         Assertions.assertEquals(1, sender.messages.size());
-    }
-
-    /**
-     * Фейковое чтение лент: новости задаются по ссылке на ленту.
-     */
-    private static class FakeReader implements NewsReader {
-
-        /**
-         * Новости лент по ссылкам.
-         */
-        private final Map<String, List<FeedItem>> news = new HashMap<>();
-
-        /**
-         * Задаёт новости ленты по ссылке.
-         */
-        void setNews(String url, FeedItem... items) {
-            news.put(url, List.of(items));
-        }
-
-        @Override
-        public List<FeedItem> read(String url) throws IOException {
-            return news.getOrDefault(url, List.of());
-        }
-    }
-
-    /**
-     * Фейковая отправка сообщений: запоминает тексты сообщений.
-     */
-    private static class FakeSender implements NewsSender {
-
-        /**
-         * Отправленные сообщения.
-         */
-        private final List<String> messages = new ArrayList<>();
-
-        @Override
-        public void sendNews(long userId, String text) {
-            messages.add(text);
-        }
-    }
-
-    /**
-     * Управляемые часы: время двигается вперёд только по команде.
-     */
-    private static class MutableClock extends Clock {
-
-        /**
-         * Текущий момент времени.
-         */
-        private Instant instant;
-
-        /**
-         * Создаёт часы, показывающие указанный момент.
-         */
-        MutableClock(Instant instant) {
-            this.instant = instant;
-        }
-
-        /**
-         * Сдвигает время вперёд.
-         */
-        void advance(Duration duration) {
-            instant = instant.plus(duration);
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return Clock.fixed(instant, zone);
-        }
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
     }
 }

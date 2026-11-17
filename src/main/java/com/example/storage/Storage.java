@@ -63,7 +63,7 @@ public interface Storage {
 
     /**
      * Возвращает настройки рассылки новостей пользователя. Если настройки не
-     * заданы, возвращает MailingSettings.DEFAULT.
+     * заданы, возвращает настройки по умолчанию.
      */
     MailingSettings getMailingSettings(long userId);
 

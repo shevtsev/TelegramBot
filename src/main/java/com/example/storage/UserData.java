@@ -34,7 +34,7 @@ class UserData {
     /**
      * Настройки рассылки новостей.
      */
-    private MailingSettings mailingSettings = MailingSettings.DEFAULT;
+    private MailingSettings mailingSettings = new MailingSettings();
 
     /**
      * Ссылки на уже отправленные новости.

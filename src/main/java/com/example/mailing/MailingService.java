@@ -118,7 +118,7 @@ public class MailingService implements AutoCloseable {
         Instant lastCheck = lastChecks.get(userId);
         if (lastCheck != null
                 && Duration.between(lastCheck, now.toInstant()).getSeconds()
-                        < settings.checkIntervalSeconds()) {
+                        < settings.getInterval().getSeconds()) {
             return;
         }
         boolean firstRun = !storage.hasSentNews(userId);
@@ -164,11 +164,11 @@ public class MailingService implements AutoCloseable {
      * пересекать полночь, например с 23 до 8.
      */
     private boolean isQuietHour(MailingSettings settings, int hour) {
-        if (settings.quietFromHour() == null || settings.quietToHour() == null) {
+        if (settings.getQuietFromHour() == null || settings.getQuietToHour() == null) {
             return false;
         }
-        int from = settings.quietFromHour();
-        int to = settings.quietToHour();
+        int from = settings.getQuietFromHour();
+        int to = settings.getQuietToHour();
         return from <= to ? hour >= from && hour < to : hour >= from || hour < to;
     }
 

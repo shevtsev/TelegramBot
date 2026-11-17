@@ -1,24 +1,39 @@
-package com.example.logic;
+package com.example.storage;
+
+import java.util.Objects;
 
 /**
- * Разбор и показ интервала проверки лент для рассылки новостей.
+ * Интервал проверки лент: от 1 секунды до одной недели.
  */
-class IntervalParser {
+public class Interval {
 
     /**
-     * Максимальный интервал проверки лент в секундах (одна неделя).
+     * Максимальная длительность интервала в секундах (одна неделя).
      */
     private static final int MAX_SECONDS = 7 * 24 * 60 * 60;
 
-    private IntervalParser() {
+    /**
+     * Длительность интервала в секундах.
+     */
+    private final int seconds;
+
+    /**
+     * Создаёт интервал указанной длительности в секундах.
+     */
+    public Interval(int seconds) {
+        if (seconds < 1 || seconds > MAX_SECONDS) {
+            throw new IllegalArgumentException(
+                    "Интервал должен быть от 1 секунды до недели: " + seconds);
+        }
+        this.seconds = seconds;
     }
 
     /**
-     * Возвращает интервал в секундах по строке вида "30", "30s", "15m", "2h"
-     * или "1d". Число без буквы считается минутами. Возвращает null, если
-     * строка не похожа на интервал или интервал не от секунды до недели.
+     * Возвращает интервал по строке вида "30", "30s", "15m", "2h" или "1d".
+     * Число без буквы считается минутами. Возвращает null, если строка не
+     * похожа на интервал или интервал не от секунды до недели.
      */
-    static Integer parseSeconds(String text) {
+    public static Interval parse(String text) {
         if (!text.matches("\\d+[smhd]?")) {
             return null;
         }
@@ -34,17 +49,25 @@ class IntervalParser {
             };
         }
         long seconds = Long.parseLong(text.substring(0, unitIndex)) * multiplier;
-        if (seconds < 1 || seconds > MAX_SECONDS) {
+        try {
+            return new Interval(Math.toIntExact(seconds));
+        } catch (ArithmeticException | IllegalArgumentException e) {
             return null;
         }
-        return (int) seconds;
+    }
+
+    /**
+     * Возвращает длительность интервала в секундах.
+     */
+    public int getSeconds() {
+        return seconds;
     }
 
     /**
      * Возвращает описание интервала для ответов бота: "каждые 30 минут",
      * "каждый час", "каждую секунду".
      */
-    static String describe(int seconds) {
+    public String format() {
         if (seconds % (24 * 60 * 60) == 0) {
             return every(seconds / (24 * 60 * 60), "каждый день", "день", "дня", "дней");
         }
@@ -60,7 +83,7 @@ class IntervalParser {
     /**
      * Собирает описание интервала из количества и форм единицы времени.
      */
-    private static String every(int count, String singular, String one,
+    private String every(int count, String singular, String one,
             String few, String many) {
         if (count == 1) {
             return singular;
@@ -76,5 +99,21 @@ class IntervalParser {
             form = many;
         }
         return "каждые " + count + " " + form;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof Interval interval)) {
+            return false;
+        }
+        return seconds == interval.seconds;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(seconds);
     }
 }
