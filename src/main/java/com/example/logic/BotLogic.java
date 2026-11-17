@@ -1,38 +1,25 @@
 package com.example.logic;
 
-import com.example.feed.FeedItem;
 import com.example.feed.NewsReader;
+import com.example.storage.DialogState;
+import com.example.storage.DialogStep;
+import com.example.storage.Feed;
 import com.example.storage.FeedPosition;
+import com.example.storage.MailingSettings;
 import com.example.storage.Storage;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Класс логики бота.
+ * Класс логики бота: разбирает команды и делегирует обработку диалогов
+ * и операции с лентами обработчику состояний.
  */
 public class BotLogic {
 
     /**
-     * Максимальный размер страницы новостей.
-     */
-    private static final int MAX_PAGE_SIZE = 20;
-
-    /**
-     * Подпись кнопки "Показать ещё".
-     */
-    private static final String MORE_TEXT = "Показать ещё";
-
-    /**
-     * Данные кнопки "Показать ещё".
-     */
-    private static final String MORE_DATA = "more";
-
-    /**
      * Ответ на команду /start.
      */
-    private static final String START_MESSAGE =
-            "Этот бот собирает новости из RSS-лент. Список команд: /help";
+    private static final String START_MESSAGE = "Этот бот собирает новости из RSS-лент. Список команд: /help";
 
     /**
      * Ответ на команду /help.
@@ -41,23 +28,66 @@ public class BotLogic {
             Доступные команды:
             /start - начать
             /help - список команд
-            /add <url> - добавить ленту
-            /remove <url> - удалить ленту
+            /add - добавить ленту по шагам
+            /add <url> - добавить ленту сразу
+            /cancel - отменить текущий диалог
+            /remove - удалить ленту по шагам
+            /remove <название или url> - удалить ленту сразу
             /list - список лент
-            /latest <url> - последние новости ленты
-            /pagesize <n> - сколько новостей показывать за раз""";
+            /latest - показать новости по шагам
+            /latest <название или url> - последние новости ленты
+            /pagesize - задать размер страницы по шагам
+            /pagesize <n> - сколько новостей показывать за раз
+            /interval - задать интервал проверки по шагам
+            /interval <время> - как часто проверять ленты (например: 30, 15m, 2h, 1d)
+            /quiet - задать тихие часы по шагам
+            /quiet <с> <до> - задать тихие часы сразу
+            /quiet off - отключить тихие часы
+            /settings - текущие настройки рассылки""";
 
     /**
      * Ответ на неизвестную команду.
      */
-    private static final String UNKNOWN_MESSAGE =
-            "Неизвестная команда. Список команд: /help";
+    private static final String UNKNOWN_MESSAGE = "Неизвестная команда. Список команд: /help";
 
     /**
-     * Ответ на неверный размер страницы.
+     * Ответ, когда по ссылке не удалось прочитать ленту.
      */
-    private static final String PAGE_SIZE_ERROR_MESSAGE =
-            "Размер страницы должен быть числом от 1 до " + MAX_PAGE_SIZE;
+    private static final String NOT_FOUND_MESSAGE = "Не удалось найти рассылку";
+
+    /**
+     * Просьба прислать ссылку в диалоге добавления ленты.
+     */
+    private static final String ASK_URL_MESSAGE = "Пришлите ссылку на ленту";
+
+    /**
+     * Просьба прислать интервал проверки лент.
+     */
+    private static final String ASK_INTERVAL_MESSAGE =
+            "Как часто проверять ленты? Пришлите интервал, например: 30, 15m, 2h, 1d";
+
+    /**
+     * Просьба прислать название ленты для показа новостей.
+     */
+    private static final String ASK_LATEST_MESSAGE = "Новости какой ленты показать?";
+
+    /**
+     * Просьба прислать название ленты для удаления.
+     */
+    private static final String ASK_REMOVE_MESSAGE = "Какую ленту удалить?";
+
+    /**
+     * Просьба прислать размер страницы новостей.
+     */
+    private static final String ASK_PAGE_SIZE_MESSAGE =
+            "Сколько новостей показывать за раз? Пришлите число от 1 до "
+                    + DialogStateHandler.MAX_PAGE_SIZE;
+
+    /**
+     * Просьба прислать час начала тихих часов.
+     */
+    private static final String ASK_QUIET_FROM_MESSAGE =
+            "С какого часа не присылать новости? Пришлите число от 0 до 23";
 
     /**
      * Хранилище данных пользователей.
@@ -65,33 +95,41 @@ public class BotLogic {
     private final Storage storage;
 
     /**
-     * Чтение новостей из лент.
+     * Обработчик шагов диалогов и операций с лентами.
      */
-    private final NewsReader reader;
+    private final DialogStateHandler dialogStateHandler;
 
     /**
      * Создаёт логику бота с хранилищем данных и чтением новостей из лент.
      */
     public BotLogic(Storage storage, NewsReader reader) {
         this.storage = storage;
-        this.reader = reader;
+        this.dialogStateHandler = new DialogStateHandler(storage, reader);
     }
 
     /**
      * Возвращает ответ на сообщение пользователя, либо вызывает команду, если
-     * пользователь написал команду.
+     * пользователь написал команду. Обычный текст считается ответом на шаг
+     * диалога добавления ленты.
      */
     public Answer userAnswer(long userId, String text) {
+        if (!text.startsWith("/")) {
+            return dialogAnswer(userId, text.trim());
+        }
         String[] parts = text.split("\\s+", 2);
         String argument = parts.length > 1 ? parts[1].trim() : "";
         Answer answer = switch (parts[0]) {
             case "/start" -> new Answer(START_MESSAGE);
             case "/help" -> new Answer(HELP_MESSAGE);
             case "/add" -> new Answer(addFeed(userId, argument));
+            case "/cancel" -> new Answer(cancelAnswer(userId));
             case "/remove" -> new Answer(removeFeed(userId, argument));
             case "/list" -> new Answer(listFeeds(userId));
             case "/latest" -> latest(userId, argument);
             case "/pagesize" -> new Answer(pageSizeAnswer(userId, argument));
+            case "/interval" -> new Answer(intervalAnswer(userId, argument));
+            case "/quiet" -> new Answer(quietAnswer(userId, argument));
+            case "/settings" -> new Answer(settingsAnswer(userId));
             default -> new Answer(UNKNOWN_MESSAGE);
         };
         return answer;
@@ -101,7 +139,7 @@ public class BotLogic {
      * Возвращает ответ на нажатие кнопки по её данным.
      */
     public Answer callbackAnswer(long userId, String data) {
-        if (MORE_DATA.equals(data)) {
+        if (DialogStateHandler.MORE_DATA.equals(data)) {
             return moreAnswer(userId);
         }
         return new Answer("");
@@ -116,33 +154,64 @@ public class BotLogic {
         if (position == null) {
             return new Answer("Сначала выберите ленту: /latest <url>");
         }
-        return showPage(userId, position.url(), position.shownCount());
+        return dialogStateHandler.showPage(userId, position.url(), position.shownCount());
     }
 
     /**
-     * Добавляет ленту в список пользователя.
+     * Добавляет ленту в список пользователя, а если ссылки нет, начинает
+     * диалог добавления ленты.
      */
     private String addFeed(long userId, String url) {
         if (url.isEmpty()) {
-            return "Укажите ссылку: /add <url>";
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_URL, ""));
+            return ASK_URL_MESSAGE;
         }
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            return "Не удалось найти рассылку";
+        if (!dialogStateHandler.isFeed(url)) {
+            return NOT_FOUND_MESSAGE;
         }
-        if (!storage.add(userId, url)) {
-            return "Эта лента уже есть в списке";
+        if (!storage.add(userId, new Feed("", url))) {
+            return DialogStateHandler.DUPLICATE_MESSAGE;
         }
         return "Лента добавлена";
     }
 
     /**
-     * Удаляет ленту из списка пользователя.
+     * Возвращает ответ на обычный текст: если у пользователя есть активный
+     * диалог, текст передаётся обработчику шагов диалога.
      */
-    private String removeFeed(long userId, String url) {
-        if (url.isEmpty()) {
-            return "Укажите ссылку: /remove <url>";
+    private Answer dialogAnswer(long userId, String text) {
+        DialogState state = storage.getDialogState(userId);
+        if (state.step() == DialogStep.NONE) {
+            return new Answer(UNKNOWN_MESSAGE);
         }
-        if (!storage.remove(userId, url)) {
+        return dialogStateHandler.answer(userId, state, text);
+    }
+
+    /**
+     * Отменяет текущий диалог и возвращает ответ пользователю.
+     */
+    private String cancelAnswer(long userId) {
+        DialogStep step = storage.getDialogState(userId).step();
+        if (step == DialogStep.NONE) {
+            return "Нечего отменять";
+        }
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
+        return switch (step) {
+            case WAITING_URL, WAITING_NAME -> "Добавление отменено";
+            case WAITING_INTERVAL, WAITING_QUIET_FROM, WAITING_QUIET_TO -> "Настройка отменена";
+            default -> "Действие отменено";
+        };
+    }
+
+    /**
+     * Удаляет ленту из списка пользователя по названию или ссылке.
+     */
+    private String removeFeed(long userId, String nameOrUrl) {
+        if (nameOrUrl.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_REMOVE, ""));
+            return ASK_REMOVE_MESSAGE;
+        }
+        if (!storage.remove(userId, dialogStateHandler.findFeedUrl(userId, nameOrUrl))) {
             return "Такой ленты нет в списке";
         }
         return "Лента удалена";
@@ -152,90 +221,103 @@ public class BotLogic {
      * Возвращает нумерованный список лент пользователя.
      */
     private String listFeeds(long userId) {
-        List<String> urls = storage.getAll(userId);
-        if (urls.isEmpty()) {
+        List<Feed> feeds = storage.getAll(userId);
+        if (feeds.isEmpty()) {
             return "Подписок пока нет. Добавь ленту командой /add <url>";
         }
         List<String> lines = new ArrayList<>();
-        for (int i = 0; i < urls.size(); i++) {
-            lines.add((i + 1) + ". " + urls.get(i));
+        for (int i = 0; i < feeds.size(); i++) {
+            lines.add((i + 1) + ". " + formatFeed(feeds.get(i)));
         }
         return String.join("\n", lines);
     }
 
     /**
-     * Показывает первую страницу новостей ленты.
+     * Возвращает ленту для показа: название и ссылка, а если названия нет,
+     * только ссылка.
      */
-    private Answer latest(long userId, String url) {
-        if (url.isEmpty()) {
-            return new Answer("Укажите ссылку: /latest <url>");
+    private String formatFeed(Feed feed) {
+        if (feed.name().isEmpty()) {
+            return feed.url();
         }
-        return showPage(userId, url, 0);
+        return feed.name() + " — " + feed.url();
     }
 
     /**
-     * Показывает страницу новостей ленты, начиная с позиции from, и
-     * запоминает, где пользователь остановился.
+     * Показывает первую страницу новостей ленты по названию или ссылке.
      */
-    private Answer showPage(long userId, String url, int from) {
-        List<FeedItem> news;
-        try {
-            news = reader.read(url);
-        } catch (IOException e) {
-            return new Answer("Не удалось прочитать ленту");
+    private Answer latest(long userId, String nameOrUrl) {
+        if (nameOrUrl.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_LATEST, ""));
+            return new Answer(ASK_LATEST_MESSAGE);
         }
-        if (news.isEmpty()) {
-            return new Answer("В ленте нет новостей");
-        }
-        if (from >= news.size()) {
-            return new Answer("Больше новостей нет");
-        }
-        int to = Math.min(from + storage.getPageSize(userId), news.size());
-        storage.setFeedPosition(userId, new FeedPosition(url, to));
-        String text = formatNews(news, from, to);
-        if (to < news.size()) {
-            return new Answer(text, List.of(new Button(MORE_TEXT, MORE_DATA)));
-        }
-        return new Answer(text);
-    }
-
-    /**
-     * Возвращает нумерованный список новостей с позиции from до позиции to.
-     */
-    private String formatNews(List<FeedItem> news, int from, int to) {
-        List<String> lines = new ArrayList<>();
-        for (int i = from; i < to; i++) {
-            FeedItem item = news.get(i);
-            lines.add((i + 1) + ". " + item.getTitle() + " — " + item.getLink());
-        }
-        return String.join("\n", lines);
+        return dialogStateHandler.showPage(userId,
+                dialogStateHandler.findFeedUrl(userId, nameOrUrl), 0);
     }
 
     /**
      * Меняет размер страницы и возвращает ответ пользователю.
      */
     private String pageSizeAnswer(long userId, String argument) {
-        if (!changePageSize(userId, argument)) {
-            return PAGE_SIZE_ERROR_MESSAGE;
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_PAGE_SIZE, ""));
+            return ASK_PAGE_SIZE_MESSAGE;
+        }
+        if (!dialogStateHandler.changePageSize(userId, argument)) {
+            return DialogStateHandler.PAGE_SIZE_ERROR_MESSAGE;
         }
         return "Размер страницы изменён: " + storage.getPageSize(userId);
     }
 
     /**
-     * Задаёт размер страницы новостей пользователя. Возвращает false, если
-     * размер указан неверно.
+     * Задаёт интервал проверки лент из параметра команды, а если параметра
+     * нет, начинает диалог настройки интервала.
      */
-    private boolean changePageSize(long userId, String argument) {
-        int size;
-        try {
-            size = Integer.parseInt(argument);
-        } catch (NumberFormatException e) {
-            return false;
+    private String intervalAnswer(long userId, String argument) {
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_INTERVAL, ""));
+            return ASK_INTERVAL_MESSAGE;
         }
-        if (size < 1 || size > MAX_PAGE_SIZE) {
-            return false;
+        return dialogStateHandler.intervalValueAnswer(userId, argument);
+    }
+
+    /**
+     * Задаёт тихие часы из параметров команды: два часа через пробел или
+     * "off" для отключения. Без параметров начинает диалог настройки тихих
+     * часов.
+     */
+    private String quietAnswer(long userId, String argument) {
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId,
+                    new DialogState(DialogStep.WAITING_QUIET_FROM, ""));
+            return ASK_QUIET_FROM_MESSAGE;
         }
-        storage.setPageSize(userId, size);
-        return true;
+        if (argument.equals("off")) {
+            return dialogStateHandler.disableQuietHours(userId);
+        }
+        String[] hours = argument.split("\\s+");
+        if (hours.length == 2) {
+            Integer from = dialogStateHandler.parseHour(hours[0]);
+            Integer to = dialogStateHandler.parseHour(hours[1]);
+            if (from != null && to != null) {
+                return dialogStateHandler.saveQuietHours(userId, from, to);
+            }
+        }
+        return "Укажите тихие часы двумя числами от 0 до 23: /quiet <с> <до>";
+    }
+
+    /**
+     * Показывает текущие настройки рассылки пользователя.
+     */
+    private String settingsAnswer(long userId) {
+        MailingSettings settings = storage.getMailingSettings(userId);
+        String quiet = "не настроены";
+        if (settings.getQuietFromHour() != null) {
+            quiet = "с " + dialogStateHandler.formatHour(settings.getQuietFromHour())
+                    + " до " + dialogStateHandler.formatHour(settings.getQuietToHour());
+        }
+        return "Проверка лент: "
+                + settings.getInterval().format()
+                + ". Тихие часы: " + quiet;
     }
 }
