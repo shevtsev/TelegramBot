@@ -255,14 +255,14 @@ public class DbStorage implements Storage, AutoCloseable {
         try (PreparedStatement statement = prepare(SELECT_MAILING_SETTINGS, userId);
                 ResultSet result = statement.executeQuery()) {
             if (!result.next()) {
-                return MailingSettings.DEFAULT;
+                return new MailingSettings();
             }
             int checkInterval = result.getInt("check_interval_seconds");
             int quietFrom = result.getInt("quiet_from");
             boolean quietFromMissing = result.wasNull();
             int quietTo = result.getInt("quiet_to");
             return new MailingSettings(
-                    checkInterval,
+                    new Interval(checkInterval),
                     quietFromMissing ? null : quietFrom,
                     result.wasNull() ? null : quietTo);
         } catch (SQLException e) {
@@ -273,8 +273,8 @@ public class DbStorage implements Storage, AutoCloseable {
     @Override
     public void setMailingSettings(long userId, MailingSettings settings) {
         createUserIfMissing(userId);
-        update(UPDATE_MAILING_SETTINGS, settings.checkIntervalSeconds(),
-                settings.quietFromHour(), settings.quietToHour(), userId);
+        update(UPDATE_MAILING_SETTINGS, settings.getInterval().getSeconds(),
+                settings.getQuietFromHour(), settings.getQuietToHour(), userId);
     }
 
     @Override
@@ -331,7 +331,8 @@ public class DbStorage implements Storage, AutoCloseable {
      */
     private void createUserIfMissing(long userId) {
         update(INSERT_USER, userId, DEFAULT_PAGE_SIZE, DialogStep.NONE.name(),
-                DialogState.NO_DIALOG.url(), MailingSettings.DEFAULT.checkIntervalSeconds());
+                DialogState.NO_DIALOG.url(),
+                new MailingSettings().getInterval().getSeconds());
     }
 
     /**

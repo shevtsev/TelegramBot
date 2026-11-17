@@ -167,10 +167,10 @@ public abstract class StorageTest {
      */
     @Test
     void testDefaultMailingSettings() {
-        Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(USER_ID));
-        Assertions.assertEquals(1800, storage.getMailingSettings(USER_ID).checkIntervalSeconds());
-        Assertions.assertNull(storage.getMailingSettings(USER_ID).quietFromHour());
-        Assertions.assertNull(storage.getMailingSettings(USER_ID).quietToHour());
+        Assertions.assertEquals(new MailingSettings(), storage.getMailingSettings(USER_ID));
+        Assertions.assertEquals(1800, storage.getMailingSettings(USER_ID).getInterval().getSeconds());
+        Assertions.assertNull(storage.getMailingSettings(USER_ID).getQuietFromHour());
+        Assertions.assertNull(storage.getMailingSettings(USER_ID).getQuietToHour());
     }
 
     /**
@@ -179,15 +179,15 @@ public abstract class StorageTest {
      */
     @Test
     void testMailingSettingsIsPerUser() {
-        MailingSettings quiet = new MailingSettings(60, 23, 8);
+        MailingSettings quiet = new MailingSettings(new Interval(60), 23, 8);
         storage.setMailingSettings(USER_ID, quiet);
         Assertions.assertEquals(quiet, storage.getMailingSettings(USER_ID));
-        Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(OTHER_USER_ID));
-        MailingSettings changed = new MailingSettings(15, 1, 7);
+        Assertions.assertEquals(new MailingSettings(), storage.getMailingSettings(OTHER_USER_ID));
+        MailingSettings changed = new MailingSettings(new Interval(15), 1, 7);
         storage.setMailingSettings(USER_ID, changed);
         Assertions.assertEquals(changed, storage.getMailingSettings(USER_ID));
-        storage.setMailingSettings(USER_ID, MailingSettings.DEFAULT);
-        Assertions.assertEquals(MailingSettings.DEFAULT, storage.getMailingSettings(USER_ID));
+        storage.setMailingSettings(USER_ID, new MailingSettings());
+        Assertions.assertEquals(new MailingSettings(), storage.getMailingSettings(USER_ID));
     }
 
     /**
@@ -238,7 +238,7 @@ public abstract class StorageTest {
     @Test
     void testSettingsDoNotAffectEachOther() {
         DialogState waitingName = new DialogState(DialogStep.WAITING_NAME, FEED_URL);
-        MailingSettings quiet = new MailingSettings(120, 22, 9);
+        MailingSettings quiet = new MailingSettings(new Interval(120), 22, 9);
         storage.setPageSize(USER_ID, 5);
         storage.setFeedPosition(USER_ID, new FeedPosition(FEED_URL, 3));
         storage.setDialogState(USER_ID, waitingName);

@@ -8,6 +8,7 @@ public record DialogState(DialogStep step, String url) {
 
     /**
      * Состояние, когда пользователь не добавляет ленту.
+     * Согласовано преподавателем
      */
     public static final DialogState NO_DIALOG = new DialogState(DialogStep.NONE, "");
 }
