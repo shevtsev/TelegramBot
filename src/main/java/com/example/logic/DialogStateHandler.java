@@ -163,7 +163,7 @@ class DialogStateHandler {
      * диалоге. Если интервал указан неверно, диалог остаётся на шаге интервала.
      */
     String intervalValueAnswer(long userId, String text) {
-        Interval interval = Interval.parse(text);
+        Interval interval = createInterval(text);
         if (interval == null) {
             return INTERVAL_ERROR_MESSAGE;
         }
@@ -172,6 +172,34 @@ class DialogStateHandler {
         storage.setMailingSettings(userId, settings);
         storage.setDialogState(userId, DialogState.NO_DIALOG);
         return "Буду проверять ленты " + interval.format();
+    }
+
+    /**
+     * Создаёт интервал по строке вида "30", "30s", "15m", "2h" или "1d".
+     * Число без буквы считается минутами. Возвращает null, если строка не
+     * похожа на интервал или интервал не от секунды до недели.
+     */
+    private Interval createInterval(String text) {
+        if (!text.matches("\\d+[smhd]?")) {
+            return null;
+        }
+        int unitIndex = text.length();
+        long multiplier = 60;
+        if (Character.isLetter(text.charAt(unitIndex - 1))) {
+            unitIndex--;
+            multiplier = switch (text.charAt(unitIndex)) {
+                case 's' -> 1;
+                case 'm' -> 60;
+                case 'h' -> 60 * 60;
+                default -> 24 * 60 * 60;
+            };
+        }
+        try {
+            return new Interval(Math.toIntExact(
+                    Long.parseLong(text.substring(0, unitIndex)) * multiplier));
+        } catch (ArithmeticException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
