@@ -21,12 +21,25 @@ public class FeedItem {
     private final String pubDate;
 
     /**
+     * Описание новости из ленты.
+     */
+    private final String description;
+
+    /**
      * Создаёт новость с заголовком, ссылкой и датой публикации.
      */
     public FeedItem(String title, String link, String pubDate) {
+        this(title, link, pubDate, "");
+    }
+
+    /**
+     * Создаёт новость с заголовком, ссылкой, датой публикации и описанием.
+     */
+    public FeedItem(String title, String link, String pubDate, String description) {
         this.title = title;
         this.link = link;
         this.pubDate = pubDate;
+        this.description = description;
     }
 
     /**
@@ -48,5 +61,12 @@ public class FeedItem {
      */
     public String getPubDate() {
         return pubDate;
+    }
+
+    /**
+     * Возвращает описание новости или пустую строку, если его нет.
+     */
+    public String getDescription() {
+        return description;
     }
 }
