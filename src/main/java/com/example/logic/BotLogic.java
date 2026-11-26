@@ -151,6 +151,9 @@ public class BotLogic {
         if (DialogStateHandler.MORE_DATA.equals(data)) {
             return moreAnswer(userId);
         }
+        if (data != null && data.startsWith(DialogStateHandler.SEARCH_MORE_PREFIX)) {
+            return dialogStateHandler.showMoreSearchResults(userId, data);
+        }
         return new Answer("");
     }
 
@@ -272,6 +275,7 @@ public class BotLogic {
      * остальные параметры — ключевые слова.
      */
     private Answer search(long userId, String argument) {
+        dialogStateHandler.clearSearch(userId);
         if (argument.isEmpty()) {
             storage.setDialogState(userId, new DialogState(DialogStep.WAITING_SEARCH_FEED, ""));
             return new Answer(ASK_SEARCH_FEED_MESSAGE);

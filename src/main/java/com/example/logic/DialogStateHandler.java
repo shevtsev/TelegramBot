@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Обработчик ответов на шаги диалогов бота: добавления ленты, настройки
@@ -38,6 +40,11 @@ class DialogStateHandler {
      * Данные кнопки "Показать ещё".
      */
     static final String MORE_DATA = "more";
+
+    /**
+     * Префикс данных кнопки следующей страницы поиска.
+     */
+    static final String SEARCH_MORE_PREFIX = "search-more:";
 
     /**
      * Ответ, когда лента с такой ссылкой уже есть в списке.
@@ -120,6 +127,11 @@ class DialogStateHandler {
      * Поиск новостей по ключевым словам.
      */
     private final NewsSearch search;
+
+    /**
+     * Результаты поиска, у которых ещё есть следующая страница.
+     */
+    private final Map<Long, SearchPage> searchPages = new ConcurrentHashMap<>();
 
     /**
      * Обработчики ответов по шагам диалога.
@@ -398,16 +410,47 @@ class DialogStateHandler {
         if (results.isEmpty()) {
             return new Answer(NO_MATCHES_MESSAGE);
         }
-        return new Answer(formatResults(results, storage.getPageSize(userId)));
+        return showSearchPage(userId, results, 0);
     }
 
     /**
-     * Возвращает первые limit результатов поиска нумерованным списком: лента,
-     * заголовок и ссылка на новость.
+     * Удаляет результаты предыдущего поиска пользователя.
      */
-    private String formatResults(List<SearchResult> results, int limit) {
+    void clearSearch(long userId) {
+        searchPages.remove(userId);
+    }
+
+    /**
+     * Показывает следующую страницу по кнопке последней выданной страницы.
+     */
+    Answer showMoreSearchResults(long userId, String data) {
+        SearchPage page = searchPages.get(userId);
+        if (page == null || !page.buttonData().equals(data) || !searchPages.remove(userId, page)) {
+            return new Answer("Эта кнопка больше не действует");
+        }
+        return showSearchPage(userId, page.results(), page.nextIndex());
+    }
+
+    /**
+     * Показывает страницу поиска и добавляет кнопку, если есть ещё результаты.
+     */
+    private Answer showSearchPage(long userId, List<SearchResult> results, int from) {
+        int to = Math.min(from + storage.getPageSize(userId), results.size());
+        String text = formatResults(results, from, to);
+        if (to == results.size()) {
+            return new Answer(text);
+        }
+        String buttonData = SEARCH_MORE_PREFIX + UUID.randomUUID();
+        searchPages.put(userId, new SearchPage(results, to, buttonData));
+        return new Answer(text, List.of(new Button(MORE_TEXT, buttonData)));
+    }
+
+    /**
+     * Возвращает результаты с from до to, сохраняя общую нумерацию.
+     */
+    private String formatResults(List<SearchResult> results, int from, int to) {
         List<String> lines = new ArrayList<>();
-        for (int i = 0; i < Math.min(limit, results.size()); i++) {
+        for (int i = from; i < to; i++) {
             SearchResult result = results.get(i);
             String source = result.feed().name().isEmpty()
                     ? ""
@@ -416,6 +459,16 @@ class DialogStateHandler {
                     + " — " + result.item().getLink());
         }
         return String.join("\n", lines);
+    }
+
+    /**
+     * Состояние перелистывания результатов поиска.
+     *
+     * @param results результаты одного поиска
+     * @param nextIndex номер первой записи следующей страницы, начиная с нуля
+     * @param buttonData данные кнопки, которая открывает следующую страницу
+     */
+    private record SearchPage(List<SearchResult> results, int nextIndex, String buttonData) {
     }
 
     /**
