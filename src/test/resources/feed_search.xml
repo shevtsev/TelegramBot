@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Новости разработки</title>
+    <item>
+      <title>Вышла новая версия Java</title>
+      <link>https://example.com/java</link>
+    </item>
+    <item>
+      <title>Обновление инструментов</title>
+      <link>https://example.com/tools</link>
+      <description><![CDATA[Новые инструменты для Kotlin.]]></description>
+    </item>
+    <item>
+      <title>Новости JavaScript</title>
+      <link>https://example.com/javascript</link>
+    </item>
+  </channel>
+</rss>
