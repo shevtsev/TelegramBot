@@ -653,4 +653,174 @@ public class BotLogicTest {
                 Assertions.assertEquals("Неизвестная команда. Список команд: /help",
                                 textAnswer(USER_ID, "2"));
         }
+
+        /**
+         * Возвращает логику бота с лентой из четырёх новостей, у первой есть
+         * описание, чтобы искать и по заголовкам, и по описаниям.
+         */
+        private BotLogic createSearchBot() {
+                return new BotLogic(storage, url -> List.of(
+                                new FeedItem("Вышла Java 25", "https://example.com/java", "",
+                                                "Новая версия языка программирования"),
+                                new FeedItem("Kotlin обновился", "https://example.com/kotlin", ""),
+                                new FeedItem("Сборка Gradle вышла", "https://example.com/gradle", ""),
+                                new FeedItem("Новости футбола", "https://example.com/football", "")));
+        }
+
+        /**
+         * Тестирование быстрого поиска по всем подпискам: слова через пробел
+         * ищутся по заголовкам и описаниям без учёта регистра.
+         */
+        @Test
+        void testSearchAllByCommand() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                Assertions.assertEquals("""
+                                1. «Хабр» Вышла Java 25 — https://example.com/java
+                                2. «Хабр» Kotlin обновился — https://example.com/kotlin""",
+                                textAnswer(USER_ID, "/search all java kotlin"));
+                Assertions.assertEquals(
+                                "1. «Хабр» Вышла Java 25 — https://example.com/java",
+                                textAnswer(USER_ID, "/search all ПРОГРАММИРОВАНИЯ"));
+        }
+
+        /**
+         * Тестирование быстрого поиска по одной ленте: название из одного
+         * слова — без кавычек, из нескольких — в кавычках.
+         */
+        @Test
+        void testSearchByFeedName() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                storage.add(USER_ID, new Feed(OTHER_NAME, OTHER_URL));
+                botLogic = createSearchBot();
+                Assertions.assertEquals(
+                                "1. «Хабр» Вышла Java 25 — https://example.com/java",
+                                textAnswer(USER_ID, "/search хабр java"));
+                Assertions.assertEquals(
+                                "1. «Хабр 2» Вышла Java 25 — https://example.com/java",
+                                textAnswer(USER_ID, "/search \"Хабр 2\" java"));
+        }
+
+        /**
+         * Тестирование пошагового поиска: бот спрашивает, где искать, затем
+         * ключевые слова, и показывает результаты.
+         */
+        @Test
+        void testSearchDialog() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                Assertions.assertEquals(
+                                "Где искать? Пришлите название ленты или all, чтобы искать по всем подпискам",
+                                textAnswer(USER_ID, "/search"));
+                Assertions.assertEquals("Какие слова искать?", textAnswer(USER_ID, "all"));
+                Assertions.assertEquals(
+                                "1. «Хабр» Сборка Gradle вышла — https://example.com/gradle",
+                                textAnswer(USER_ID, "gradle"));
+        }
+
+        /**
+         * Тестирование ошибок диалога поиска: при неизвестной ленте и пустом
+         * запросе бот остаётся на том же шаге и подсказывает, что ввести.
+         */
+        @Test
+        void testSearchDialogErrors() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/search");
+                Assertions.assertEquals(
+                                "Такой ленты нет в списке. Пришлите название ещё раз или /cancel",
+                                textAnswer(USER_ID, OTHER_NAME));
+                Assertions.assertEquals("Какие слова искать?", textAnswer(USER_ID, FEED_NAME));
+                Assertions.assertEquals("Укажите ключевые слова для поиска",
+                                textAnswer(USER_ID, "   "));
+                Assertions.assertEquals(
+                                "1. «Хабр» Новости футбола — https://example.com/football",
+                                textAnswer(USER_ID, "новости"));
+        }
+
+        /**
+         * Тестирование отмены поиска на разных шагах диалога: ключевые слова
+         * не сохраняются, после отмены обычный текст — неизвестная команда.
+         */
+        @Test
+        void testSearchCancel() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/search");
+                Assertions.assertEquals("Поиск отменен", textAnswer(USER_ID, "/cancel"));
+                botLogic.userAnswer(USER_ID, "/search");
+                botLogic.userAnswer(USER_ID, "all");
+                Assertions.assertEquals("Поиск отменен", textAnswer(USER_ID, "/cancel"));
+                Assertions.assertEquals("Неизвестная команда. Список команд: /help",
+                                textAnswer(USER_ID, "java"));
+        }
+
+        /**
+         * Тестирование того, что диалоги поиска у разных пользователей
+         * независимы: каждый находится на своём шаге.
+         */
+        @Test
+        void testSearchDialogsArePerUser() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                storage.add(OTHER_USER_ID, new Feed(OTHER_NAME, OTHER_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/search");
+                botLogic.userAnswer(OTHER_USER_ID, "/search");
+                Assertions.assertEquals("Какие слова искать?", textAnswer(USER_ID, "all"));
+                Assertions.assertEquals("Какие слова искать?", textAnswer(OTHER_USER_ID, OTHER_NAME));
+                Assertions.assertEquals(
+                                "1. «Хабр» Kotlin обновился — https://example.com/kotlin",
+                                textAnswer(USER_ID, "kotlin"));
+                Assertions.assertEquals(
+                                "1. «Хабр 2» Сборка Gradle вышла — https://example.com/gradle",
+                                textAnswer(OTHER_USER_ID, "gradle"));
+        }
+
+        /**
+         * Тестирование первой страницы результатов: показывается столько
+         * результатов, сколько задано размером страницы, без кнопки "Показать
+         * ещё".
+         */
+        @Test
+        void testSearchFirstPage() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/pagesize 1");
+                Answer answer = botLogic.userAnswer(USER_ID, "/search all вышла");
+                Assertions.assertEquals(
+                                "1. «Хабр» Вышла Java 25 — https://example.com/java",
+                                answer.text());
+                Assertions.assertTrue(answer.buttons().isEmpty());
+        }
+
+        /**
+         * Тестирование ошибок быстрого поиска: отсутствие подписок, неизвестная
+         * лента, пустой запрос и отсутствие совпадений.
+         */
+        @Test
+        void testSearchErrors() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                Assertions.assertEquals(
+                                "Подписок пока нет. Добавь ленту командой /add <url>",
+                                textAnswer(OTHER_USER_ID, "/search all java"));
+                Assertions.assertEquals("Такой ленты нет в списке",
+                                textAnswer(USER_ID, "/search НетТакойЛенты java"));
+                Assertions.assertEquals("Укажите ключевые слова для поиска",
+                                textAnswer(USER_ID, "/search all"));
+                Assertions.assertEquals("Укажите ключевые слова для поиска",
+                                textAnswer(USER_ID, "/search " + FEED_NAME));
+                Assertions.assertEquals("Ничего не найдено",
+                                textAnswer(USER_ID, "/search all теннис"));
+        }
+
+        /**
+         * Тестирование ошибки чтения ленты во время поиска.
+         */
+        @Test
+        void testSearchFeedReadError() {
+                storage.add(USER_ID, new Feed(FEED_NAME, BROKEN_URL));
+                Assertions.assertEquals("Не удалось прочитать ленту",
+                                textAnswer(USER_ID, "/search all Первая"));
+        }
 }
