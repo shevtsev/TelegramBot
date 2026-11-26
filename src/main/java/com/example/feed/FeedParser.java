@@ -31,7 +31,8 @@ public class FeedParser {
             items.add(new FeedItem(
                     getChildText(item, "title"),
                     getChildText(item, "link"),
-                    getChildText(item, "pubDate")));
+                    getChildText(item, "pubDate"),
+                    getChildText(item, "description")));
         }
         return items;
     }
