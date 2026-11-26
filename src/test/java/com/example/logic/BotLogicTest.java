@@ -5,6 +5,7 @@ import com.example.storage.Feed;
 import com.example.storage.MemoryStorage;
 import com.example.storage.Storage;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -777,20 +778,60 @@ public class BotLogicTest {
         }
 
         /**
-         * Тестирование первой страницы результатов: показывается столько
-         * результатов, сколько задано размером страницы, без кнопки "Показать
-         * ещё".
+         * Проверяет перелистывание результатов, сквозную нумерацию и
+         * отсутствие кнопки на последней странице.
          */
         @Test
-        void testSearchFirstPage() {
+        void testSearchPages() {
                 storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
                 botLogic = createSearchBot();
                 botLogic.userAnswer(USER_ID, "/pagesize 1");
-                Answer answer = botLogic.userAnswer(USER_ID, "/search all вышла");
+                Answer first = botLogic.userAnswer(USER_ID, "/search all вышла kotlin");
                 Assertions.assertEquals(
                                 "1. «Хабр» Вышла Java 25 — https://example.com/java",
-                                answer.text());
-                Assertions.assertTrue(answer.buttons().isEmpty());
+                                first.text());
+                Assertions.assertEquals(1, first.buttons().size());
+                Button firstButton = first.buttons().getFirst();
+                Assertions.assertEquals("Показать ещё", firstButton.text());
+                Answer second = botLogic.callbackAnswer(USER_ID, firstButton.data());
+                Assertions.assertEquals(
+                                "2. «Хабр» Kotlin обновился — https://example.com/kotlin",
+                                second.text());
+                Assertions.assertEquals(1, second.buttons().size());
+                Assertions.assertEquals("Эта кнопка больше не действует",
+                                botLogic.callbackAnswer(USER_ID, firstButton.data()).text());
+                Answer last = botLogic.callbackAnswer(USER_ID, second.buttons().getFirst().data());
+                Assertions.assertEquals(
+                                "3. «Хабр» Сборка Gradle вышла — https://example.com/gradle",
+                                last.text());
+                Assertions.assertTrue(last.buttons().isEmpty());
+                Assertions.assertEquals("Эта кнопка больше не действует",
+                                botLogic.callbackAnswer(USER_ID, second.buttons().getFirst().data()).text());
+        }
+
+        /**
+         * Проверяет, что новый поиск заменяет предыдущий только у своего пользователя.
+         */
+        @Test
+        void testSearchButtonsArePerUser() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                storage.add(OTHER_USER_ID, new Feed(OTHER_NAME, OTHER_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/pagesize 1");
+                botLogic.userAnswer(OTHER_USER_ID, "/pagesize 1");
+                String first = botLogic.userAnswer(USER_ID, "/search all вышла")
+                                .buttons().getFirst().data();
+                String other = botLogic.userAnswer(OTHER_USER_ID, "/search all вышла")
+                                .buttons().getFirst().data();
+
+                Assertions.assertEquals("Эта кнопка больше не действует",
+                                botLogic.callbackAnswer(OTHER_USER_ID, first).text());
+                botLogic.userAnswer(USER_ID, "/search all kotlin");
+                Assertions.assertEquals("Эта кнопка больше не действует",
+                                botLogic.callbackAnswer(USER_ID, first).text());
+                Assertions.assertEquals(
+                                "2. «Хабр 2» Сборка Gradle вышла — https://example.com/gradle",
+                                botLogic.callbackAnswer(OTHER_USER_ID, other).text());
         }
 
         /**
@@ -822,5 +863,101 @@ public class BotLogicTest {
                 storage.add(USER_ID, new Feed(FEED_NAME, BROKEN_URL));
                 Assertions.assertEquals("Не удалось прочитать ленту",
                                 textAnswer(USER_ID, "/search all Первая"));
+        }
+
+        /**
+         * Проверяет, что ровно одна полная страница не получает кнопку и что
+         * лента, добавленная по ссылке, показывается без пустого названия.
+         */
+        @Test
+        void testSearchExactPageFromUnnamedFeed() {
+                storage.add(USER_ID, new Feed("", FEED_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/pagesize 2");
+
+                Answer answer = botLogic.userAnswer(USER_ID, "/search ALL java kotlin");
+
+                Assertions.assertEquals(new Answer("""
+                                1. Вышла Java 25 — https://example.com/java
+                                2. Kotlin обновился — https://example.com/kotlin"""), answer);
+        }
+
+        /**
+         * Проверяет, что неполная последняя страница поиска не читает RSS
+         * повторно и что диалог завершается после ввода слов.
+         */
+        @Test
+        void testSearchDialogShowsRemainingResultsWithoutReadingAgain() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                List<String> reads = new ArrayList<>();
+                botLogic = new BotLogic(storage, url -> {
+                        reads.add(url);
+                        return List.of(
+                                        new FeedItem("Java: первая", "https://example.com/1", ""),
+                                        new FeedItem("Java: вторая", "https://example.com/2", ""),
+                                        new FeedItem("Java: третья", "https://example.com/3", ""));
+                });
+                botLogic.userAnswer(USER_ID, "/pagesize 2");
+                botLogic.userAnswer(USER_ID, "/search");
+                botLogic.userAnswer(USER_ID, "ALL");
+
+                Answer first = botLogic.userAnswer(USER_ID, "java");
+                Assertions.assertEquals("""
+                                1. «Хабр» Java: первая — https://example.com/1
+                                2. «Хабр» Java: вторая — https://example.com/2""", first.text());
+                Assertions.assertEquals("Неизвестная команда. Список команд: /help",
+                                textAnswer(USER_ID, "java"));
+                Assertions.assertEquals(new Answer("3. «Хабр» Java: третья — https://example.com/3"),
+                                botLogic.callbackAnswer(USER_ID, first.buttons().getFirst().data()));
+                Assertions.assertEquals(List.of(FEED_URL), reads);
+        }
+
+        /**
+         * Проверяет, что переключение страниц /latest и /search использует
+         * разные позиции, а обычная выдача включает все новости.
+         */
+        @Test
+        void testSearchAndLatestHaveIndependentPages() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                botLogic = createSearchBot();
+                botLogic.userAnswer(USER_ID, "/pagesize 1");
+                Answer latest = botLogic.userAnswer(USER_ID, "/latest Хабр");
+                Answer search = botLogic.userAnswer(USER_ID, "/search all вышла");
+
+                Assertions.assertEquals("2. Kotlin обновился — https://example.com/kotlin",
+                                botLogic.callbackAnswer(USER_ID, latest.buttons().getFirst().data()).text());
+                Assertions.assertEquals(new Answer("2. «Хабр» Сборка Gradle вышла — https://example.com/gradle"),
+                                botLogic.callbackAnswer(USER_ID, search.buttons().getFirst().data()));
+        }
+
+        /** Проверяет сообщение при незакрытой кавычке и отсутствие чтения ленты. */
+        @Test
+        void testSearchRejectsUnclosedQuote() {
+                botLogic = new BotLogic(storage, url -> Assertions.fail("Ленту читать не нужно"));
+
+                Assertions.assertEquals(new Answer(
+                                "Название в кавычках должно заканчиваться закрывающей кавычкой"),
+                                botLogic.userAnswer(USER_ID, "/search \"Хабр 2 java"));
+        }
+
+        /** Проверяет, что поиск по всем подпискам читает все свои ленты и только их. */
+        @Test
+        void testSearchAllUsesOnlyOwnSubscriptions() {
+                storage.add(USER_ID, new Feed(FEED_NAME, FEED_URL));
+                storage.add(USER_ID, new Feed(OTHER_NAME, OTHER_URL));
+                storage.add(OTHER_USER_ID, new Feed("Чужая лента", BROKEN_URL));
+                botLogic = new BotLogic(storage, url -> {
+                        if (url.equals(BROKEN_URL)) {
+                                return Assertions.fail("Чужую ленту читать не нужно");
+                        }
+                        return List.of(new FeedItem("Java", url, ""));
+                });
+
+                Assertions.assertEquals(new Answer("""
+                                1. «Хабр» Java — https://habr.com/rss
+                                2. «Хабр 2» Java — https://example.com/rss"""),
+                                botLogic.userAnswer(USER_ID, "/search all java"));
+                Assertions.assertEquals(new Answer("Такой ленты нет в списке"),
+                                botLogic.userAnswer(USER_ID, "/search \"Чужая лента\" java"));
         }
 }
