@@ -2,6 +2,8 @@ package com.example.logic;
 
 import com.example.feed.FeedItem;
 import com.example.feed.NewsReader;
+import com.example.feed.NewsSearch;
+import com.example.feed.SearchResult;
 import com.example.storage.DialogState;
 import com.example.storage.DialogStep;
 import com.example.storage.Feed;
@@ -72,6 +74,39 @@ class DialogStateHandler {
             "Пришлите час от 0 до 23 или /cancel";
 
     /**
+     * Просьба прислать ключевые слова поиска.
+     */
+    private static final String ASK_SEARCH_QUERY_MESSAGE = "Какие слова искать?";
+
+    /**
+     * Ответ, когда ленты с присланным названием нет в списке.
+     */
+    private static final String SEARCH_FEED_ERROR_MESSAGE =
+            "Такой ленты нет в списке. Пришлите название ещё раз или /cancel";
+
+    /**
+     * Ответ на пустой запрос поиска.
+     */
+    private static final String SEARCH_QUERY_ERROR_MESSAGE =
+            "Укажите ключевые слова для поиска";
+
+    /**
+     * Ответ, когда у пользователя нет подписок.
+     */
+    private static final String NO_SUBSCRIPTIONS_MESSAGE =
+            "Подписок пока нет. Добавь ленту командой /add <url>";
+
+    /**
+     * Ответ, когда поиск ничего не нашёл.
+     */
+    private static final String NO_MATCHES_MESSAGE = "Ничего не найдено";
+
+    /**
+     * Ответ, когда ленту не удалось прочитать.
+     */
+    private static final String SEARCH_READ_ERROR_MESSAGE = "Не удалось прочитать ленту";
+
+    /**
      * Хранилище данных пользователей.
      */
     private final Storage storage;
@@ -80,6 +115,11 @@ class DialogStateHandler {
      * Чтение новостей из лент.
      */
     private final NewsReader reader;
+
+    /**
+     * Поиск новостей по ключевым словам.
+     */
+    private final NewsSearch search;
 
     /**
      * Обработчики ответов по шагам диалога.
@@ -93,6 +133,7 @@ class DialogStateHandler {
     DialogStateHandler(Storage storage, NewsReader reader) {
         this.storage = storage;
         this.reader = reader;
+        this.search = new NewsSearch(reader);
         stepAnswers.put(DialogStep.WAITING_URL,
                 (userId, state, text) -> new Answer(urlAnswer(userId, text)));
         stepAnswers.put(DialogStep.WAITING_NAME,
@@ -109,6 +150,10 @@ class DialogStateHandler {
                 (userId, state, text) -> new Answer(removeDialogAnswer(userId, text)));
         stepAnswers.put(DialogStep.WAITING_PAGE_SIZE,
                 (userId, state, text) -> new Answer(pageSizeDialogAnswer(userId, text)));
+        stepAnswers.put(DialogStep.WAITING_SEARCH_FEED,
+                (userId, state, text) -> new Answer(searchFeedAnswer(userId, text)));
+        stepAnswers.put(DialogStep.WAITING_SEARCH_QUERY,
+                (userId, state, text) -> searchQueryAnswer(userId, state.url(), text));
     }
 
     /**
@@ -289,6 +334,101 @@ class DialogStateHandler {
         }
         storage.setDialogState(userId, DialogState.NO_DIALOG);
         return "Размер страницы изменён: " + storage.getPageSize(userId);
+    }
+
+    /**
+     * Запоминает, где искать новости, присланное в диалоге: all или название
+     * ленты, и переходит к шагу ключевых слов. Если ленты с таким названием
+     * нет в списке, диалог остаётся на том же шаге.
+     */
+    private String searchFeedAnswer(long userId, String text) {
+        if (text.equalsIgnoreCase("all")) {
+            storage.setDialogState(userId,
+                    new DialogState(DialogStep.WAITING_SEARCH_QUERY, "all"));
+            return ASK_SEARCH_QUERY_MESSAGE;
+        }
+        if (findFeedByName(userId, text) == null) {
+            return SEARCH_FEED_ERROR_MESSAGE;
+        }
+        storage.setDialogState(userId,
+                new DialogState(DialogStep.WAITING_SEARCH_QUERY, text));
+        return ASK_SEARCH_QUERY_MESSAGE;
+    }
+
+    /**
+     * Ищет новости по ключевым словам, присланным в диалоге, и завершает
+     * диалог. Если слова не присланы, диалог остаётся на том же шаге.
+     */
+    private Answer searchQueryAnswer(long userId, String scope, String text) {
+        if (text.isBlank()) {
+            return new Answer(SEARCH_QUERY_ERROR_MESSAGE);
+        }
+        storage.setDialogState(userId, DialogState.NO_DIALOG);
+        return searchAnswer(userId, scope, text);
+    }
+
+    /**
+     * Ищет новости пользователя по ключевым словам: во всех лентах, если
+     * область поиска — all, иначе в ленте с указанным названием. Показывает
+     * первую страницу результатов с учётом размера страницы пользователя.
+     */
+    Answer searchAnswer(long userId, String scope, String query) {
+        if (query.isBlank()) {
+            return new Answer(SEARCH_QUERY_ERROR_MESSAGE);
+        }
+        List<Feed> feeds;
+        if (scope.equalsIgnoreCase("all")) {
+            feeds = storage.getAll(userId);
+        } else {
+            Feed feed = findFeedByName(userId, scope);
+            if (feed == null) {
+                return new Answer("Такой ленты нет в списке");
+            }
+            feeds = List.of(feed);
+        }
+        if (feeds.isEmpty()) {
+            return new Answer(NO_SUBSCRIPTIONS_MESSAGE);
+        }
+        List<SearchResult> results;
+        try {
+            results = search.search(feeds, query);
+        } catch (IOException e) {
+            return new Answer(SEARCH_READ_ERROR_MESSAGE);
+        }
+        if (results.isEmpty()) {
+            return new Answer(NO_MATCHES_MESSAGE);
+        }
+        return new Answer(formatResults(results, storage.getPageSize(userId)));
+    }
+
+    /**
+     * Возвращает первые limit результатов поиска нумерованным списком: лента,
+     * заголовок и ссылка на новость.
+     */
+    private String formatResults(List<SearchResult> results, int limit) {
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < Math.min(limit, results.size()); i++) {
+            SearchResult result = results.get(i);
+            String source = result.feed().name().isEmpty()
+                    ? ""
+                    : "«" + result.feed().name() + "» ";
+            lines.add((i + 1) + ". " + source + result.item().getTitle()
+                    + " — " + result.item().getLink());
+        }
+        return String.join("\n", lines);
+    }
+
+    /**
+     * Возвращает ленту пользователя с указанным названием (без учёта
+     * регистра) или null, если такой ленты нет в списке.
+     */
+    Feed findFeedByName(long userId, String name) {
+        for (Feed feed : storage.getAll(userId)) {
+            if (!feed.name().isEmpty() && feed.name().equalsIgnoreCase(name)) {
+                return feed;
+            }
+        }
+        return null;
     }
 
     /**

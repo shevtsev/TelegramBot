@@ -48,5 +48,15 @@ public enum DialogStep {
     /**
      * Бот ждёт размер страницы новостей.
      */
-    WAITING_PAGE_SIZE
+    WAITING_PAGE_SIZE,
+
+    /**
+     * Бот ждёт, где искать новости: название ленты или all.
+     */
+    WAITING_SEARCH_FEED,
+
+    /**
+     * Бот ждёт ключевые слова поиска.
+     */
+    WAITING_SEARCH_QUERY
 }

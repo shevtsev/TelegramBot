@@ -43,7 +43,9 @@ public class BotLogic {
             /quiet - задать тихие часы по шагам
             /quiet <с> <до> - задать тихие часы сразу
             /quiet off - отключить тихие часы
-            /settings - текущие настройки рассылки""";
+            /settings - текущие настройки рассылки
+            /search - искать новости по шагам
+            /search <название или all> <слова> - найти новости по ключевым словам""";
 
     /**
      * Ответ на неизвестную команду.
@@ -82,6 +84,12 @@ public class BotLogic {
     private static final String ASK_PAGE_SIZE_MESSAGE =
             "Сколько новостей показывать за раз? Пришлите число от 1 до "
                     + DialogStateHandler.MAX_PAGE_SIZE;
+
+    /**
+     * Просьба прислать, где искать новости: название ленты или all.
+     */
+    private static final String ASK_SEARCH_FEED_MESSAGE =
+            "Где искать? Пришлите название ленты или all, чтобы искать по всем подпискам";
 
     /**
      * Просьба прислать час начала тихих часов.
@@ -130,6 +138,7 @@ public class BotLogic {
             case "/interval" -> new Answer(intervalAnswer(userId, argument));
             case "/quiet" -> new Answer(quietAnswer(userId, argument));
             case "/settings" -> new Answer(settingsAnswer(userId));
+            case "/search" -> search(userId, argument);
             default -> new Answer(UNKNOWN_MESSAGE);
         };
         return answer;
@@ -199,6 +208,7 @@ public class BotLogic {
         return switch (step) {
             case WAITING_URL, WAITING_NAME -> "Добавление отменено";
             case WAITING_INTERVAL, WAITING_QUIET_FROM, WAITING_QUIET_TO -> "Настройка отменена";
+            case WAITING_SEARCH_FEED, WAITING_SEARCH_QUERY -> "Поиск отменен";
             default -> "Действие отменено";
         };
     }
@@ -253,6 +263,34 @@ public class BotLogic {
         }
         return dialogStateHandler.showPage(userId,
                 dialogStateHandler.findFeedUrl(userId, nameOrUrl), 0);
+    }
+
+    /**
+     * Ищет новости по ключевым словам из параметров команды, а если
+     * параметров нет, начинает диалог поиска. Первый параметр — область
+     * поиска: all или название ленты (из нескольких слов — в кавычках),
+     * остальные параметры — ключевые слова.
+     */
+    private Answer search(long userId, String argument) {
+        if (argument.isEmpty()) {
+            storage.setDialogState(userId, new DialogState(DialogStep.WAITING_SEARCH_FEED, ""));
+            return new Answer(ASK_SEARCH_FEED_MESSAGE);
+        }
+        String scope;
+        String query;
+        if (argument.startsWith("\"")) {
+            int end = argument.indexOf('"', 1);
+            if (end < 0) {
+                return new Answer("Название в кавычках должно заканчиваться закрывающей кавычкой");
+            }
+            scope = argument.substring(1, end);
+            query = argument.substring(end + 1).trim();
+        } else {
+            String[] tokens = argument.split("\\s+", 2);
+            scope = tokens[0];
+            query = tokens.length > 1 ? tokens[1].trim() : "";
+        }
+        return dialogStateHandler.searchAnswer(userId, scope, query);
     }
 
     /**
